@@ -10,9 +10,11 @@ English: [README.md](README.md)
 
 | 组件 | 路径 | 说明 |
 | --- | --- | --- |
-| 中继服务端 | `apps/relay` | 房间注册、签名票据、频道成员管理与有界转发。 |
+| 中继服务端 | `relay` | 房间注册、签名票据、频道成员管理与有界转发。 |
 | TypeScript SDK | `packages/romzo-client` | 零运行时依赖的客户端 SDK。 |
-| 共享协议向量 | `protocol/` | 公开的确定性测试值。 |
+| 协议 | `protocol/` | WebSocket 规范、HTTP OpenAPI 与共享测试向量。 |
+| 部署配置 | `deploy/` | Docker、环境模板与反向代理示例。 |
+| 文档 | `docs/` | 部署、架构与发布指南。 |
 
 ## 快速开始
 
@@ -66,7 +68,7 @@ await session.subscribe('table');
 
 verify 检查公共文件边界与可达 Git 历史、SDK 单元测试与类型、Go 测试与竞态测试、共享协议向量、作为 HTTP 面唯一信源且由契约测试校验端点覆盖的 `openapi.yaml`、SDK 构建，以及一次真实本地中继集成。
 
-`npm run build:relay` 额外构建 Linux amd64/arm64 与 Windows amd64 二进制、校验和及依赖许可声明，输出到 apps/relay/dist。
+`npm run build:relay` 额外构建 Linux amd64/arm64 与 Windows amd64 二进制、校验和及依赖许可声明，输出到 dist/relay。
 
 本地集成启动真实 Go 进程，创建并加入通用房间，认证两个 SDK 会话，转发消息，续期票据，重启中继并恢复房间。该集成仅覆盖本地 HTTP/WS；公网 WSS、浏览器实战、物理设备与多实例验收需另行测试。
 
@@ -75,9 +77,9 @@ verify 检查公共文件边界与可达 Git 历史、SDK 单元测试与类型�
 | 文档 | 路径 | 说明 |
 | --- | --- | --- |
 | SDK 文档 | [packages/romzo-client/README_zh.md](packages/romzo-client/README_zh.md) | |
-| 部署指南 | [apps/relay/README_zh.md](apps/relay/README_zh.md) | |
-| HTTP OpenAPI | [apps/relay/openapi.yaml](apps/relay/openapi.yaml) | HTTP 面的唯一信源。 |
-| WebSocket 协议 | [apps/relay/FRAMES_zh.md](apps/relay/FRAMES_zh.md) | |
+| 部署指南 | [docs/deployment_zh.md](docs/deployment_zh.md) | |
+| HTTP OpenAPI | [protocol/openapi.yaml](protocol/openapi.yaml) | HTTP 面的唯一信源。 |
+| WebSocket 协议 | [protocol/FRAMES_zh.md](protocol/FRAMES_zh.md) | |
 | 架构指南 | [docs/architecture_zh.md](docs/architecture_zh.md) | 应用职责与恢复边界。 |
 | 示例 | [examples/](examples/) | 直连真实中继的最小浏览器（`examples/browser/`）与 Node.js（`examples/node/`）聊天客户端。 |
 | 安全说明 | [SECURITY_zh.md](SECURITY_zh.md) | |

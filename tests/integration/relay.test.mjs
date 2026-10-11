@@ -26,7 +26,7 @@ function receive(session) {
   });
 }
 test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recovery', {timeout: 45000}, async () => {
-  const directory = new URL('../../apps/relay/', import.meta.url);
+  const directory = new URL('../../relay/', import.meta.url);
   const output = mkdtempSync(join(tmpdir(), 'romzo-integration-'));
   const binary = join(output, process.platform === 'win32' ? 'relay.exe' : 'relay');
   const origin = `http://127.0.0.1:${await freePort()}`, clientOrigin = 'https://client.example.com';

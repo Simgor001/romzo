@@ -17,12 +17,12 @@ Release steps for maintainers. Everything publishes from a clean, verified tree.
    (pushing `main` itself is a separate, explicit decision).
 
 After 1.0.0, follow semver: wire-protocol-visible behavior changes in the relay
-bump the server minor/major (`version` in `protocol.go`); SDK-only fixes patch.
+bump the server minor/major (`version` in `relay/protocol.go`); SDK-only fixes patch.
 
 ## Relay server binary
 
 `npm run build:relay` produces Linux amd64/arm64 and Windows amd64 binaries,
-checksums and dependency notices under `apps/relay/dist/`. Attach them to a
+checksums and dependency notices under `dist/relay/`. Attach them to a
 GitHub release whose tag matches the `version` constant.
 
 ## IANA port

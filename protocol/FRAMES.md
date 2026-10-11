@@ -2,7 +2,7 @@
 
 中文：[FRAMES_zh.md](FRAMES_zh.md)
 
-This document is the specification of the `apps/relay` WebSocket surface; it
+This document is the specification of the `relay` WebSocket surface; it
 complements the OpenAPI document (`openapi.yaml`) for the HTTP surface.
 Third-party client implementations can follow this document and the shared
 test vectors (`protocol/relay-v1-vectors.json`) alone.

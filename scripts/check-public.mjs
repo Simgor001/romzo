@@ -29,7 +29,7 @@ function inspect(label, body) {
   for (const [rule, pattern] of patterns) {
     // Bare three-byte drive prefixes can occur randomly in machine code.
     // Require an actual folder component for binaries; source stays stricter.
-    const binary = /^artifact apps\/relay\/dist\/(?:romzo-relay-|integration-relay)/.test(label);
+    const binary = /^artifact dist\/relay\/(?:romzo-relay-|integration-relay)/.test(label);
     const candidate = rule==='machine-path' && binary ? /\b[A-Z]:[\\/][\p{L}\p{N}_. -]+[\\/]|\/(?:Users|home)\/[A-Za-z0-9_.-]+\//u : pattern;
     if (candidate.test(body)) fail(label, rule);
   }
@@ -91,7 +91,7 @@ if(process.argv.includes('--artifacts')) {
     if(path.startsWith('packages/romzo-client/dist/') && !/^packages\/romzo-client\/dist\/[a-z]+\.(?:js|d\.ts)$/.test(path))fail(path,'unexpected-sdk-artifact');
     inspect(`artifact ${path}`,readFileSync(full,'utf8'));artifacts++;
   }
-  for(const path of ['packages/romzo-client/dist','apps/relay/dist']) {
+  for(const path of ['packages/romzo-client/dist','dist/relay']) {
     if(!existsSync(resolve(root,path)))fail(path,'missing-artifacts');else walk(path);
   }
 }

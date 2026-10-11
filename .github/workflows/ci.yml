@@ -27,5 +27,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t romzo-ci apps/relay
+      - run: docker build -f deploy/Dockerfile -t romzo-ci relay
       - run: docker run --rm romzo-ci -version

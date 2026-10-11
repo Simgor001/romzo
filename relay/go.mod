@@ -1,4 +1,4 @@
-module github.com/Simgor001/romzo/apps/relay
+module github.com/Simgor001/romzo/relay
 
 go 1.26.1
 

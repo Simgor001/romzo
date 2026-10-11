@@ -12,7 +12,7 @@ submitter.
 | Description | Romzo room relay — opaque WebSocket fan-out with signed admission tickets (`romzo/v1`) |
 | Assignee | ⟪fill in: name, postal address, email⟫ |
 | Contact | ⟪fill in: email⟫ |
-| Reference | `https://github.com/Simgor001/romzo` — protocol: `apps/relay/FRAMES.md`; HTTP surface: `apps/relay/openapi.yaml` |
+| Reference | `https://github.com/Simgor001/romzo` — protocol: `protocol/FRAMES.md`; HTTP surface: `protocol/openapi.yaml` |
 | Date | ⟪fill in: submission date⟫ |
 
 Notes for the reviewer: the protocol documentation is public and stable; the

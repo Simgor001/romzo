@@ -14,9 +14,11 @@ Server release: **1.3.0**. SDK: **romzo 0.2.0**. Wire protocol:
 
 | Component | Path | Description |
 | --- | --- | --- |
-| Relay server | `apps/relay` | Room registration, signed tickets, channel membership and bounded forwarding. |
+| Relay server | `relay` | Room registration, signed tickets, channel membership and bounded forwarding. |
 | TypeScript SDK | `packages/romzo-client` | Zero-runtime-dependency client SDK. |
-| Shared protocol vectors | `protocol/` | Public deterministic test values. |
+| Protocol | `protocol/` | WebSocket specification, HTTP OpenAPI and shared test vectors. |
+| Deployment | `deploy/` | Docker, environment template and reverse-proxy examples. |
+| Documentation | `docs/` | Deployment, architecture and release guides. |
 
 ## Quick start
 
@@ -78,7 +80,7 @@ unit tests and types, Go tests and race tests, shared protocol vectors,
 test covering every endpoint, SDK builds and a real local relay integration.
 
 `npm run build:relay` also builds Linux amd64/arm64 and Windows amd64
-binaries, checksums and dependency license notices under apps/relay/dist.
+binaries, checksums and dependency license notices under dist/relay.
 
 The local integration starts a real Go process, creates and joins a generic
 room, authenticates two SDK sessions, forwards messages, renews tickets,
@@ -91,9 +93,9 @@ acceptance need separate tests.
 | Document | Path | Notes |
 | --- | --- | --- |
 | SDK documentation | [packages/romzo-client/README.md](packages/romzo-client/README.md) | |
-| Relay deployment guide | [apps/relay/README.md](apps/relay/README.md) | |
-| HTTP OpenAPI | [apps/relay/openapi.yaml](apps/relay/openapi.yaml) | Single source of truth for the HTTP surface. |
-| WebSocket protocol (FRAMES) | [apps/relay/FRAMES.md](apps/relay/FRAMES.md) | |
+| Relay deployment guide | [docs/deployment.md](docs/deployment.md) | |
+| HTTP OpenAPI | [protocol/openapi.yaml](protocol/openapi.yaml) | Single source of truth for the HTTP surface. |
+| WebSocket protocol (FRAMES) | [protocol/FRAMES.md](protocol/FRAMES.md) | |
 | Architecture guide | [docs/architecture.md](docs/architecture.md) | Application responsibilities and recovery boundaries. |
 | Examples | [examples/](examples/) | Minimal browser (`examples/browser/`) and Node.js (`examples/node/`) chat clients against a live relay. |
 | Security guidance | [SECURITY.md](SECURITY.md) | |

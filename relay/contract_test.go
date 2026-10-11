@@ -16,7 +16,7 @@ import (
 // pins the contract that matters: version, protocol identifier, and every
 // endpoint path the server routes.
 func TestOpenAPIDocumentCoversWireContract(t *testing.T) {
-	y, e := os.ReadFile("openapi.yaml")
+	y, e := os.ReadFile("../protocol/openapi.yaml")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -50,7 +50,7 @@ func TestOpenAPIDocumentCoversWireContract(t *testing.T) {
 }
 
 func TestSharedVectors(t *testing.T) {
-	b, e := os.ReadFile("../../protocol/relay-v1-vectors.json")
+	b, e := os.ReadFile("../protocol/relay-v1-vectors.json")
 	if e != nil {
 		t.Fatal(e)
 	}

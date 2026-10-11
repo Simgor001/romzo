@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, copyFileSync, existsSync, chmodSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, basename } from 'node:path';
-const cwd = resolve('apps/relay'), out = resolve(cwd, 'dist');
+const cwd = resolve('relay'), out = resolve('dist/relay');
 function copyNotice(source, target) {
   if(existsSync(target))chmodSync(target,0o666);
   copyFileSync(source,target);chmodSync(target,0o644);
