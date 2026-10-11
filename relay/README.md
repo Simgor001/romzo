@@ -1,6 +1,6 @@
 # Relay server
 
-Romzo 的 Go 服务端。源码与测试在本目录，管理页面资源在 `admin/`。
+Romzo 的 Go 服务端，只提供 HTTP 与 WebSocket 接口。仓库 `website/admin/` 里有一个在线管理器的静态示例（纯前端，直接调用中继 API），部署与否、如何分发由部署者决定。
 
 - [部署与配置](../docs/deployment_zh.md) · [Deployment guide](../docs/deployment.md)
 - [WebSocket 协议](../protocol/FRAMES_zh.md) · [Frame protocol](../protocol/FRAMES.md)

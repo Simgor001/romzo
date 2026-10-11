@@ -128,13 +128,15 @@ successive snapshots and dividing by elapsed seconds. The metrics endpoint is re
 
 ### Node status page
 
-Open `/admin/` on the relay origin and enter the same monitoring key. The page
-is embedded in the Go binary, including Docker builds, and uses no external
-assets. It shows aggregate metrics, sampled byte rates, close reasons and the
+Open `/admin/` on the relay origin and enter the same monitoring key. The console
+is static files from `website/admin/` in the repository — a pure front-end for
+the relay API with no external assets. Host them however you like; placing them
+under the relay origin is the simplest because the browser then calls the API
+same-origin. It shows aggregate metrics, sampled byte rates, close reasons and the
 last successful update. Refresh runs every five seconds; pause, manual refresh
 and sign out are available. The key stays in page memory only and is cleared
 on reload, page exit or sign out. No browser storage or URL credentials are used.
-An unset `METRICS_KEY` disables both the page and metrics endpoint.
+An unset `METRICS_KEY` disables the metrics endpoint, leaving the page without data.
 
 Authenticated room rankings expose room codes and monitoring IDs. Rooms
 include unconfirmed reservations. Inbound counters count authenticated protocol

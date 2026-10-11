@@ -185,10 +185,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		failure(w, 400, "query_not_allowed")
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/admin/") {
-		s.serveAdmin(w, r)
-		return
-	}
 	if origin := r.Header.Get("Origin"); origin != "" {
 		if !s.originAllowed(origin) {
 			failure(w, 403, "origin_denied")
