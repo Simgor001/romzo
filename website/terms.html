@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Romzo — Public test relay terms</title>
+<meta name="description" content="Terms and acceptable-use rules for the Romzo public test relay.">
+<link rel="icon" type="image/svg+xml" href="romzo-icon.svg">
+<link rel="stylesheet" href="style.css">
+</head><body>
+<nav>
+  <div class="nav-inner">
+    <a class="wordmark" href="index.html"><img src="romzo-icon.svg" width="28" height="28" alt="" aria-hidden="true">Romzo</a>
+    <div class="nav-links">
+      <a href="index.html" class="l-en">home</a>
+      <a href="index.html" class="l-zh">首页</a>
+      <a href="sdk.html">sdk</a>
+      <a href="https://github.com/Simgor001/romzo">github</a>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="lang">
+      <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language / 语言">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </button>
+      <div class="lang-menu">
+        <button type="button" data-set-lang="en">English</button>
+        <button type="button" data-set-lang="zh">中文</button>
+      </div>
+    </div>
+  </div>
+</nav>
+<main class="wrap legal-page">
+<h1 class="l-zh">公共测试节点服务条款</h1><h1 class="l-en">Public test relay terms</h1>
+<p class="legal-meta l-zh">版本：2026-10-12</p><p class="legal-meta l-en">Version: 2026-10-12</p>
+
+<section id="scope"><h2 class="l-zh">1. 服务范围</h2><h2 class="l-en">1. Scope</h2><p class="l-zh">本条款仅适用于由 Romzo 项目的个人维护者运营（GitHub: <a href="https://github.com/Simgor001">Simgor001</a>）、部署于<span data-legal="region">新加坡</span>的 romzo.net 公共测试节点及其 HTTP、WebSocket 接口，不适用于源码、SDK 或他人自行部署的节点。使用前请阅读并遵守本条款；不同意请勿连接该节点。源码与 SDK 的使用、修改、分发仍按 Apache-2.0 许可证执行，自部署服务由其运营者负责。</p><p class="l-en">These terms apply only to the romzo.net public test relay, operated by the individual maintainer of the Romzo project (GitHub: <a href="https://github.com/Simgor001">Simgor001</a>) and hosted in <span data-legal="region">Singapore</span>, together with its HTTP and WebSocket interfaces. They do not apply to the source code, SDK or independently hosted relays. Read and follow these terms before connecting; do not use the relay if you disagree. Source code and SDK use, modification and distribution remain governed by Apache-2.0. Self-hosted services are the responsibility of their operators.</p>
+</section>
+<section id="testing"><h2 class="l-zh">2. 测试用途与限制</h2><h2 class="l-en">2. Testing and limits</h2><p class="l-zh">节点是运营者个人业余维护的测试服务，按现状提供：不承诺持续在线、消息必达或任何可用性，亦无 SLA。容量、连接数、帧大小及请求频率受限制；维护、故障或清理可能导致断线、房间丢失或消息未送达，节点可能随时暂停或终止。请自行保存应用状态并处理重连与同步，不要用于要求持续可用、可靠存档或人身财产安全保障的业务。</p><p class="l-en">The relay is a personal side project, provided as is: no commitment to uptime, message delivery or any availability, and no SLA. Capacity, connections, frame sizes and request rates are limited. Maintenance, failures and cleanup may disconnect clients, remove rooms or lose messages, and the relay may be suspended or shut down at any time. Preserve application state and handle reconnection and synchronization yourself. Do not rely on it for continuous availability, reliable archiving or safety-critical operations.</p>
+</section>
+<section id="prohibited"><h2 class="l-zh">3. 禁止用途</h2><h2 class="l-en">3. Prohibited use</h2><p class="l-zh">不得利用节点实施、协助或掩盖违法活动；不得通过房间、频道、配置或消息传播以下内容或实施以下行为，私有房间、加密负载和免注册也不例外：</p><p class="l-en">Do not use the relay to conduct, assist or conceal unlawful activity. The following content and conduct are prohibited through rooms, channels, configuration or messages. Private rooms, encrypted payloads and registration-free access are no exception:</p>
+<ul>
+<li class="l-zh">国家法律禁止的信息，包括危害国家安全、泄露国家秘密、煽动仇恨或歧视、恐怖主义、淫秽色情、非法赌博、教唆犯罪，以及侵害未成年人权益的内容。</li><li class="l-en">Content prohibited by applicable law, including national-security violations, state secrets, incitement to hatred or discrimination, terrorism, pornography, illegal gambling, incitement to crime and exploitation of minors.</li>
+<li class="l-zh">诈骗、钓鱼、冒充身份、恶意骚扰、诽谤、侵犯著作权或其他合法权益；未经授权收集、泄露或交易个人信息。</li><li class="l-en">Fraud, phishing, impersonation, malicious harassment, defamation, infringement of copyright or other rights, and unauthorized collection, disclosure or sale of personal data.</li>
+<li class="l-zh">恶意软件、僵尸网络控制、攻击流量中转、未授权扫描、入侵、窃听，以及协助他人实施上述行为。</li><li class="l-en">Malware, botnet control, relaying attack traffic, unauthorized scanning, intrusion, interception or assistance with those activities.</li>
+<li class="l-zh">垃圾消息、批量广告、洪泛、未经许可的压测；绕过限流、封禁或访问控制，批量占用房间和连接，影响其他使用者。</li><li class="l-en">Spam, bulk advertising, flooding, unapproved load tests, bypassing rate limits, bans or access controls, or hoarding rooms and connections to disrupt others.</li>
+<li class="l-zh">将公共测试节点用作通用网络代理、VPN、端口转发或流量隧道；规避法律要求或帮助违法访问。</li><li class="l-en">Using the public test relay as a general-purpose network proxy, VPN, port forwarder or traffic tunnel; evading legal requirements or assisting unlawful access.</li>
+</ul>
+</section>
+<section id="responsibility"><h2 class="l-zh">4. 使用者责任</h2><h2 class="l-en">4. Your responsibilities</h2><p class="l-zh">使用者及接入应用应遵守适用法律和服务所在地的要求，并确保有权传输相关内容。应用运营者应告知其用户使用规则，取得必要授权，履行内容管理、个人信息保护及所需备案或许可义务。不得冒充项目或云服务商，不得未经许可转售公共节点访问权；商用或持续运行的应用应自行部署或另行取得服务安排。</p><p class="l-en">Users and integrating applications must comply with applicable law and requirements in the service location and have the right to transmit their content. Application operators must inform their users of the rules, obtain necessary authorization and meet content-management, privacy and applicable filing or licensing obligations. Do not impersonate the project or cloud provider, or resell access to the public relay without permission. Commercial or continuously running applications should self-host or obtain a separate service arrangement.</p>
+</section>
+<section id="data"><h2 class="l-zh">5. 数据与安全</h2><h2 class="l-en">5. Data and security</h2><p class="l-zh">测试节点不提供保密或重要数据的托管。不要发送口令、私钥、身份证件、支付资料等敏感信息。HTTPS/WSS 只加密传输通道，应用负载是否加密由接入应用决定。</p>
+<p class="l-zh">为排障、控制资源消耗和防止滥用，节点会记录来源 IP、房间号、连接时间、连接数、频道数及入站和出站字节数。开启创建 IP 记录后，还会保存房间创建请求的来源 IP。IP 可能多人共用，不能单独用来认定个人身份。</p>
+<p class="l-zh">房间运行记录仅供持有管理密钥的运营人员查看，不公开展示，也不回传给开源项目方；监控不记录消息正文。房间结束 24 小时后运行记录自动清除，关联文件在下一次保存时清理。</p>
+<p class="l-zh">运营人员可以让房间下线、断开其连接并拒绝恢复票据。房间恢复时，若创建记录已不存在，恢复者的 IP 不会被当作创建 IP。</p>
+<p class="l-zh">自托管节点的数据处理由其运营者自行说明。运营者处理反馈、排障或依法配合调查时，只会在必要且合法的范围内使用和披露数据。</p><p class="l-en">Do not send passwords, private keys, identity documents, payment details or other sensitive information through this relay; it does not host confidential or important data. HTTPS/WSS encrypts transport only; whether application payloads are encrypted is up to the application. </p>
+<p class="l-en">For troubleshooting, resource control and abuse prevention, the relay records source IPs, room codes, connection times, connection and channel counts, and inbound/outbound byte totals. With creator-IP recording enabled, it also stores the source IP of the room-allocation request. IPs may be shared and do not by themselves identify a person. </p>
+<p class="l-en">Room records are accessible only to operators holding the management key. They are not displayed publicly or shared with the open-source project, and monitoring does not record message bodies. Room records are deleted 24 hours after the room ends; associated files are cleaned up at the next save. </p>
+<p class="l-en">Operators may take a room offline, disconnect its clients and reject restore tickets. If a room’s creation record no longer exists, the restorer’s IP is not treated as the creator IP. </p>
+<p class="l-en">Self-hosted operators define their own data handling. When handling feedback, troubleshooting or lawful investigations, the operator uses and discloses data only to the extent necessary and lawful.</p>
+</section>
+<section id="enforcement"><h2 class="l-zh">6. 违规处理</h2><h2 class="l-en">6. Enforcement</h2><p class="l-zh">发现明显违法内容、安全风险、资源滥用，或收到经核实的投诉、主管机关要求、云服务商通知时，我们可按必要范围限流、断开连接、限制访问或暂停节点。紧急情况下可先处置，再提供说明。依法需要时停止相关传输、保存必要记录并配合有权机关；不能以“只负责转发”为由免除法定义务。被限制的使用者可以通过问题反馈渠道说明情况。</p><p class="l-en">For clearly unlawful content, security risks, abuse, substantiated reports, competent-authority requests or cloud-provider notices, we may limit rates, disconnect clients, restrict access or suspend the relay as necessary. Urgent action may precede an explanation. Where required by law, we stop relevant transmission, preserve necessary records and cooperate with competent authorities. Forwarding messages does not waive statutory duties. Restricted users may explain their situation via the feedback channel.</p>
+</section>
+<section id="changes"><h2 class="l-zh">7. 变更与责任边界</h2><h2 class="l-en">7. Changes and liability</h2><p class="l-zh">我们可因维护、费用、安全或合规需要调整或停止测试服务；重大规则变化会在本页注明版本并提前提示，不追究生效前已发生的行为。测试服务不保证消息必达、持续在线或满足特定用途；使用者应评估风险并备份。双方责任按适用法律确定，本条款不排除法律禁止排除的责任，也不免除运营者依法应承担的义务。</p><p class="l-en">We may change or stop the test service for maintenance, cost, security or compliance reasons. Material rule changes should be dated here and reasonably announced, without retroactively expanding liability for past conduct. The test service does not guarantee delivery, continuous uptime or suitability for a particular purpose. Assess risks and keep backups. Applicable law determines each party’s liability. These terms do not exclude liability that cannot lawfully be excluded or waive the operator’s statutory obligations.</p>
+</section>
+<section id="contact"><h2 class="l-zh">8. 问题反馈</h2><h2 class="l-en">8. Feedback</h2>
+<p class="l-zh">节点无需注册，不核验使用者真实身份。反馈问题时可提供发生时间、相关房号和问题描述，供我们定位故障或滥用；我们不承诺识别相关使用者的真实身份。请勿在公开 Issue 中提交个人信息、票据、私钥或完整消息记录。私密反馈渠道将在确认后补充。</p>
+<p class="l-en">The relay requires no registration and does not verify users’ real identities. To help us investigate failures or abuse, provide the time, relevant room code and a description of the issue. We do not promise to identify the users involved. Do not post personal information, tickets, private keys or complete message records in public issues. A private feedback channel will be added after confirmation.</p>
+</section>
+
+</main>
+<footer>
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <a class="wordmark" href="index.html"><img src="romzo-icon.svg" width="28" height="28" alt="" aria-hidden="true">Romzo</a>
+      <a class="foot-license" href="https://github.com/Simgor001/romzo/blob/main/LICENSE"><span class="l-zh">源码许可证：Apache-2.0</span><span class="l-en">Source license: Apache-2.0</span></a>
+    </div>
+    <ul class="foot-links">
+      <li><a href="sdk.html"><span class="l-zh">SDK 文档</span><span class="l-en">SDK docs</span></a></li>
+      <li><a href="terms.html"><span class="l-zh">服务条款</span><span class="l-en">Terms</span></a></li>
+      <li><a href="https://github.com/Simgor001/romzo">GitHub</a></li>
+    </ul>
+  </div>
+</footer>
+<script src="site.js"></script>
+</body></html>

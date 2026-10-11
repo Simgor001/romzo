@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Romzo</title>
+  <desc>An open room with a doorway, charcoal walls and a brick-orange floor.</desc>
+  <rect width="64" height="64" rx="14" fill="#faf9f6"/>
+  <path d="m10 41 22-13 22 13-22 13Z" fill="#bd421c"/>
+  <path d="m10 19 22-13v22L10 41Z" fill="#222522"/>
+  <path d="m32 6 22 13v22L32 28Z" fill="#414741"/>
+  <path d="m16 27.45 8-4.73v10l-8 4.73Z" fill="#faf9f6"/>
+</svg>

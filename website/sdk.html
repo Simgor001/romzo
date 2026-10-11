@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Romzo SDK — @romzo/client</title>
-<meta name="description" content="SDK reference for @romzo/client: rooms, tickets, channels, host and guest flows, recovery.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f05623'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='17' font-weight='700' fill='%230f0e0d' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+<title>Romzo SDK — romzo</title>
+<meta name="description" content="SDK reference for romzo: rooms, tickets, channels, host and guest flows, recovery.">
+<link rel="icon" type="image/svg+xml" href="romzo-icon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <nav>
   <div class="nav-inner">
-    <a class="wordmark" href="index.html">Romzo<i></i></a>
+    <a class="wordmark" href="index.html"><img src="romzo-icon.svg" width="28" height="28" alt="" aria-hidden="true">Romzo</a>
     <div class="nav-links">
       <a href="index.html" class="l-en">home</a>
       <a href="index.html" class="l-zh">首页</a>
-      <a href="sdk.html" class="active">sdk</a>
-      <a href="https://github.com/Simgor001/romzo">github</a>
+      <a href="sdk.html" class="active">SDK</a>
+      <a href="https://github.com/Simgor001/romzo">GitHub</a>
     </div>
     <div class="nav-spacer"></div>
     <div class="lang">
-      <button type="button" aria-haspopup="true" aria-label="language">
+      <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language / 语言">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
       </button>
       <div class="lang-menu">
@@ -34,32 +34,56 @@
 
 <header class="page-head">
   <div class="wrap">
-    <h1>@romzo/client</h1>
-    <p class="l-en">TypeScript SDK for the romzo/v1 protocol. Its only dependencies
-      are WebCrypto and WebSocket.</p>
-    <p class="l-zh">romzo/v1 协议的 TypeScript SDK。只用 WebCrypto 与 WebSocket，零运行时依赖。</p>
+    <div>
+    <h1>romzo</h1>
+    <p class="l-en">TypeScript client for the romzo/v1 protocol. Depends only on
+      WebCrypto and WebSocket.</p>
+    <p class="l-zh">romzo/v1 协议的 TypeScript 客户端，只依赖 WebCrypto 与 WebSocket。</p>
+    </div>
+    <div class="install-card">
+      <div class="code-panel">
+        <div class="code-head"><span class="code-tag">npm</span><span class="grow"></span></div>
+        <pre><code>npm i romzo</code></pre>
+      </div>
+    </div>
   </div>
 </header>
 
+<aside class="doc-toc" aria-label="SDK contents"><div class="wrap">
+  <a href="#build"><span class="l-en">Build</span><span class="l-zh">构建</span></a>
+  <a href="#concepts"><span class="l-en">Concepts</span><span class="l-zh">概念</span></a>
+  <a href="#host"><span class="l-en">Host</span><span class="l-zh">房主</span></a>
+  <a href="#guest"><span class="l-en">Guest</span><span class="l-zh">访客</span></a>
+  <a href="#recovery"><span class="l-en">Recovery</span><span class="l-zh">恢复</span></a>
+  <a href="#modules"><span class="l-en">Modules</span><span class="l-zh">模块</span></a>
+  <a href="#responsibilities"><span class="l-en">Application</span><span class="l-zh">应用职责</span></a>
+  <a href="#reference"><span class="l-en">Reference</span><span class="l-zh">参考</span></a>
+</div></aside>
+
 <main>
 
-<section class="section">
+<section class="section" id="build">
   <div class="wrap">
-    <h2 class="l-en">Build from source</h2>
-    <h2 class="l-zh">从源码构建</h2>
-    <p class="l-en">The SDK lives in <code>packages/romzo-client</code>. From the
-      repository root:</p>
-    <p class="l-zh">SDK 位于 <code>packages/romzo-client</code>。在仓库根目录执行：</p>
-
-    <pre><code data-lang="sh">npm ci
-npm run build -w @romzo/client</code></pre>
-
-    <p class="l-en">The build is ESM with strict TypeScript types.</p>
-    <p class="l-zh">构建产物为 ESM，带严格模式 TypeScript 类型。</p>
+    <div class="split">
+      <div class="split-copy">
+        <h2 class="l-en">Build from source</h2>
+        <h2 class="l-zh">从源码构建</h2>
+        <p class="l-en">The SDK lives in <code>packages/romzo-client</code>. From the
+          repository root:</p>
+        <p class="l-zh">SDK 位于 <code>packages/romzo-client</code>。在仓库根目录执行：</p>
+        <p class="l-en">The build is ESM with strict TypeScript types.</p>
+        <p class="l-zh">构建产物为 ESM，带严格模式 TypeScript 类型。</p>
+      </div>
+      <div class="code-panel">
+        <div class="code-head"><span class="code-tag">SH</span><span class="grow"></span></div>
+        <pre><code data-lang="sh">npm ci
+npm run build -w romzo</code></pre>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="concepts">
   <div class="wrap">
     <h2 class="l-en">Concepts</h2>
     <h2 class="l-zh">概念</h2>
@@ -69,28 +93,51 @@ npm run build -w @romzo/client</code></pre>
       <li class="l-zh"><strong>房间</strong>——10 位房间码，房主持 <code>host</code>
         密钥对 descriptor 签名。</li>
       <li class="l-en"><strong>Tickets</strong> — admission tickets authenticate the
-        WebSocket (60 seconds, single handshake). Recovery tickets restore a room after
-        a crash or restart.</li>
+        WebSocket (60 seconds, single handshake). Recovery tickets restore a room after a client
+        crash or relay restart.</li>
       <li class="l-zh"><strong>票据</strong>——admission 票据用于 WebSocket 认证
-        （60 秒、单次握手）；recovery 票据在崩溃或重启后恢复房间。</li>
-      <li class="l-en"><strong>Channels</strong> — <code>discovery</code> /
-        <code>lobby</code> / <code>game</code>. Subscribers receive
+        （60 秒、单次握手）；recovery 票据用于客户端崩溃或中继重启后恢复房间。</li>
+      <li class="l-en"><strong>Channels</strong> — declared per room in
+        <code>options.channels</code> (name plus per-channel frame cap, at most 8);
+        if omitted, the <code>discovery</code> / <code>lobby</code> /
+        <code>game</code> defaults apply. Subscribers receive
         <code>join</code> / <code>leave</code> / <code>receive</code> frames.</li>
-      <li class="l-zh"><strong>通道</strong>——<code>discovery</code> /
-        <code>lobby</code> / <code>game</code>，订阅后收到
-        <code>join</code> / <code>leave</code> / <code>receive</code> 帧。</li>
+      <li class="l-zh"><strong>通道</strong>——按房间在
+        <code>options.channels</code> 中声明（名字 + 逐频道帧上限，最多 8 个）；
+        缺省时用 <code>discovery</code> / <code>lobby</code> / <code>game</code>
+        默认档。订阅后收到 <code>join</code> / <code>leave</code> /
+        <code>receive</code> 帧。</li>
     </ul>
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="host">
   <div class="wrap">
-    <h2 class="l-en">Host: create, confirm, connect</h2>
-    <h2 class="l-zh">房主：创建、确认、连接</h2>
+    <div class="split">
+      <div class="split-copy">
+        <h2 class="l-en">Host</h2>
+        <h2 class="l-zh">房主</h2>
+        <p class="l-en">Create the room, confirm it on the relay, then open a
+          WebSocket session and subscribe to channels.</p>
+        <p class="l-zh">创建房间、在中继上确认，然后建立 WebSocket 会话并订阅频道。</p>
+        <p class="l-en">Relays with <code>CREATE_AUTH=password</code> take
+          <code>{ password }</code> as the third argument of <code>createRoom</code>.</p>
+        <p class="l-zh">开了 <code>CREATE_AUTH=password</code> 的中继，
+          <code>createRoom</code> 第三个参数传 <code>{ password }</code>。</p>
+      </div>
+      <div>
+        <div class="code-panel l-en">
+          <div class="code-head"><span class="code-tag">TS</span><span class="grow"></span></div>
+          <pre><code>import { createRoom, RelaySession } from 'romzo';
 
-    <div class="l-en"><pre><code>import { createRoom, RelaySession } from '@romzo/client';
-
-const room = await createRoom('https://romzo.net', roomOptions);
+const roomOptions = {
+  app: 'my-game',
+  channels: [
+    { name: 'table', maxFrameBytes: 262144 },
+    { name: 'chat', maxFrameBytes: 16384 },
+  ],
+};
+const room = await createRoom('romzo.net', roomOptions);
 
 const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
 const session = await RelaySession.connect(url, room.admission, room.transport);
@@ -99,11 +146,20 @@ session.on('join', (_p, { channel, peer, key }) => { /* peer key for E2E crypto 
 session.on('receive', (value, { channel, peer }) => { /* a peer's payload */ });
 session.on('close', () => { /* reconnect with the recovery ticket */ });
 
-await session.subscribe('game');</code></pre></div>
+await session.subscribe('table');</code></pre>
+        </div>
+        <div class="code-panel l-zh">
+          <div class="code-head"><span class="code-tag">TS</span><span class="grow"></span></div>
+          <pre><code>import { createRoom, RelaySession } from 'romzo';
 
-    <div class="l-zh"><pre><code>import { createRoom, RelaySession } from '@romzo/client';
-
-const room = await createRoom('https://romzo.net', roomOptions);
+const roomOptions = {
+  app: 'my-game',
+  channels: [
+    { name: 'table', maxFrameBytes: 262144 },
+    { name: 'chat', maxFrameBytes: 16384 },
+  ],
+};
+const room = await createRoom('romzo.net', roomOptions);
 
 const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
 const session = await RelaySession.connect(url, room.admission, room.transport);
@@ -112,58 +168,67 @@ session.on('join', (_p, { channel, peer, key }) => { /* peer 公钥 key 可用�
 session.on('receive', (value, { channel, peer }) => { /* 他人 send 的负载 */ });
 session.on('close', () => { /* 终端 error 帧或传输断开，用 recovery 票据重连 */ });
 
-await session.subscribe('game');</code></pre></div>
-
-    <p class="l-en">Relays with <code>CREATE_AUTH=password</code> take
-      <code>{ password }</code> as the third argument of <code>createRoom</code>.</p>
-    <p class="l-zh">开了 <code>CREATE_AUTH=password</code> 的中继，
-      <code>createRoom</code> 第三个参数传 <code>{ password }</code>。</p>
+await session.subscribe('table');</code></pre>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="guest">
   <div class="wrap">
-    <h2 class="l-en">Guest: join from an invite</h2>
-    <h2 class="l-zh">访客：凭邀请加入</h2>
+    <div class="split">
+      <div class="split-copy">
+        <h2 class="l-en">Guest</h2>
+        <h2 class="l-zh">访客</h2>
+        <p class="l-en"><code>joinRoom</code> verifies the descriptor, config hash and
+          host signature before requesting admission.</p>
+        <p class="l-zh"><code>joinRoom</code> 在申请 admission 前核对 descriptor、
+          configHash 与宿主签名。</p>
+      </div>
+      <div class="code-panel">
+        <div class="code-head"><span class="code-tag">TS</span><span class="grow"></span></div>
+        <pre><code>import { joinRoom, RelaySession } from 'romzo';
 
-    <pre><code>import { joinRoom, RelaySession } from '@romzo/client';
-
-const joined = await joinRoom('https://romzo.net', 'ABCD2345EF');
+const joined = await joinRoom('romzo.net', 'ABCD2345EF');
 const url = joined.signedDescriptor.descriptor.origin
   .replace(/^http/, 'ws') + '/ws';
 const session = await RelaySession.connect(url, joined.admission, joined.transport);
-await session.subscribe('lobby');</code></pre>
-
-    <p class="l-en"><code>joinRoom</code> verifies the descriptor, config hash and host
-      signature before requesting admission.</p>
-    <p class="l-zh"><code>joinRoom</code> 在申请 admission 前核对 descriptor、configHash
-      与宿主签名。</p>
+await session.subscribe('table');</code></pre>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="recovery">
   <div class="wrap">
-    <h2 class="l-en">Crash recovery</h2>
-    <h2 class="l-zh">崩溃恢复</h2>
-    <p class="l-en">Keepalive responses update <code>session.currentRecovery()</code>
-      automatically. Persist three values — <code>signedDescriptor</code>,
-      <code>transport</code>, <code>recovery</code> — to restore the room after a
-      restart:</p>
-    <p class="l-zh">keepalive 应答自动更新 <code>session.currentRecovery()</code>。
-      持久化三个值——<code>signedDescriptor</code>、<code>transport</code>、
-      <code>recovery</code>——即可在中继重启后恢复房间：</p>
-
-    <pre><code>import { restoreSession, RelaySession } from '@romzo/client';
+    <div class="split">
+      <div class="split-copy">
+        <h2 class="l-en">Crash recovery</h2>
+        <h2 class="l-zh">崩溃恢复</h2>
+        <p class="l-en">Keepalive responses update <code>session.currentRecovery()</code>
+          automatically. Persist three values — <code>signedDescriptor</code>,
+          <code>transport</code>, <code>recovery</code> — to restore the room after a
+          restart.</p>
+        <p class="l-zh">keepalive 应答自动更新 <code>session.currentRecovery()</code>。
+          持久化三个值——<code>signedDescriptor</code>、<code>transport</code>、
+          <code>recovery</code>——即可在中继重启后恢复房间。</p>
+      </div>
+      <div class="code-panel">
+        <div class="code-head"><span class="code-tag">TS</span><span class="grow"></span></div>
+        <pre><code>import { restoreSession, RelaySession } from 'romzo';
 
 const restored = await restoreSession(
   saved.signedDescriptor, saved.recovery, saved.transport);
 const session = await RelaySession.connect(wsUrl,
   restored.admission, restored.transport);
 // resubscribe and sync history in the envelope layer</code></pre>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="modules">
   <div class="wrap">
     <h2 class="l-en">Modules</h2>
     <h2 class="l-zh">模块</h2>
@@ -221,7 +286,7 @@ const session = await RelaySession.connect(wsUrl,
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="responsibilities">
   <div class="wrap">
     <h2 class="l-en">The SDK leaves these to you</h2>
     <h2 class="l-zh">以下部分由调用方负责</h2>
@@ -231,17 +296,16 @@ const session = await RelaySession.connect(wsUrl,
       <li class="l-zh"><strong>重连。</strong>断线后凭 recovery 票据重连、重新订阅并同步历史。</li>
       <li class="l-en"><strong>Key storage.</strong> Generated keys are extractable for
         export and recovery. Pick a protected storage and a clearing policy.</li>
-      <li class="l-zh"><strong>密钥存储。</strong>生成的密钥可导出（extractable），用于
-        导出与恢复。存储保护与清除策略由应用选择。</li>
-      <li class="l-en"><strong>Rules.</strong> The SDK does not interpret game options.
-        Validate them with the <code>validateOptions</code> callback.</li>
-      <li class="l-zh"><strong>规则。</strong>SDK 不解释桌游 options，通过
+      <li class="l-zh"><strong>密钥存储。</strong>SDK 生成的密钥均为 extractable，存储位置与清除时机由应用决定。</li>
+      <li class="l-en"><strong>Rules.</strong> The SDK does not interpret options. Validate
+        them with the <code>validateOptions</code> callback.</li>
+      <li class="l-zh"><strong>规则。</strong>SDK 不解读 options 内容，由应用通过
         <code>validateOptions</code> 回调校验。</li>
     </ul>
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="reference">
   <div class="wrap">
     <h2 class="l-en">Reference</h2>
     <h2 class="l-zh">参考文档</h2>
@@ -251,6 +315,8 @@ const session = await RelaySession.connect(wsUrl,
       <li><a href="https://github.com/Simgor001/romzo/blob/main/apps/relay/openapi.yaml">HTTP OpenAPI (openapi.yaml)</a></li>
       <li class="l-en"><a href="https://github.com/Simgor001/romzo/blob/main/docs/architecture.md">Architecture (docs/architecture.md)</a></li>
       <li class="l-zh"><a href="https://github.com/Simgor001/romzo/blob/main/docs/architecture_zh.md">架构指南（docs/architecture_zh.md）</a></li>
+      <li class="l-en"><a href="https://github.com/Simgor001/romzo/blob/main/apps/relay/README.md">Deployment guide</a></li>
+      <li class="l-zh"><a href="https://github.com/Simgor001/romzo/blob/main/apps/relay/README_zh.md">部署指南</a></li>
       <li class="l-en"><a href="https://github.com/Simgor001/romzo/blob/main/SECURITY.md">Security (SECURITY.md)</a></li>
       <li class="l-zh"><a href="https://github.com/Simgor001/romzo/blob/main/SECURITY_zh.md">安全说明（SECURITY_zh.md）</a></li>
     </ul>
@@ -260,12 +326,15 @@ const session = await RelaySession.connect(wsUrl,
 </main>
 
 <footer>
-  <div class="wrap">
-    <span>romzo · apache-2.0 · romzo/v1 · relay 1.2.0 · sdk 0.2.0</span>
-    <ul class="doc-links">
-      <li><a href="index.html" class="l-en">home</a></li>
-      <li><a href="index.html" class="l-zh">首页</a></li>
-      <li><a href="https://github.com/Simgor001/romzo">github</a></li>
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <a class="wordmark" href="index.html"><img src="romzo-icon.svg" width="28" height="28" alt="" aria-hidden="true">Romzo</a>
+      <a class="foot-license" href="https://github.com/Simgor001/romzo/blob/main/LICENSE"><span class="l-zh">源码许可证：Apache-2.0</span><span class="l-en">Source license: Apache-2.0</span></a>
+    </div>
+    <ul class="foot-links">
+      <li><a href="sdk.html"><span class="l-zh">SDK 文档</span><span class="l-en">SDK docs</span></a></li>
+      <li><a href="terms.html"><span class="l-zh">服务条款</span><span class="l-en">Terms</span></a></li>
+      <li><a href="https://github.com/Simgor001/romzo">GitHub</a></li>
     </ul>
   </div>
 </footer>
