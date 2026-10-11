@@ -4,12 +4,6 @@ import { resolve } from 'node:path';
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, windowsHide: true });
 const root = git('rev-parse', '--show-toplevel').trim();
-const allowedRoot = new Set(['LICENSE', 'NOTICE', 'README.md', 'SECURITY.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json']);
-function allowed(path) {
-  return allowedRoot.has(path) || /^(?:scripts\/(?:check-public|relay|generate-vectors)\.mjs|tests\/integration\/relay\.test\.mjs|tests\/security\/public-boundary\.test\.mjs|\.github\/workflows\/ci\.yml|docs\/architecture\.md|protocol\/(?:README\.md|relay-v1-vectors\.json))$/.test(path) ||
-    /^apps\/relay\/(?:[a-z_]+\.go|go\.(?:mod|sum)|\.gitignore|\.dockerignore|\.env\.example|Dockerfile|LICENSE|compose\.yaml|(?:README|FRAMES)\.md|openapi\.yaml|scripts\/build\.mjs|deploy\/nginx(?:-same-origin)?\.conf)$/.test(path) ||
-    /^packages\/romzo-client\/(?:\.gitignore|LICENSE|README\.md|package\.json|tsconfig(?:\.build)?\.json|src\/[a-z]+\.ts|tests\/[a-z]+\.test\.ts)$/.test(path);
-}
 const findings = new Set();
 function fail(label, rule) { findings.add(`${label}: ${rule}`); }
 const patterns = [
@@ -43,10 +37,11 @@ function inspect(label, body) {
     if (!fixtureValues.has(match[1])) fail(label, 'credential-literal');
   }
 }
+// Every git-tracked (and untracked, non-ignored) file is a public-boundary
+// scan target; symlinks, non-regular files and oversized files are findings.
 const paths = git('ls-files', '--cached', '--others', '--exclude-standard', '-z').split('\0').filter(Boolean);
 let files = 0;
 for (const path of new Set(paths)) {
-  if (!allowed(path)) { fail(path, 'outside-public-allowlist'); continue; }
   const full = resolve(root, path);
   if(!existsSync(full))continue; // Index and history are checked independently.
   const stat = lstatSync(full);
@@ -58,7 +53,6 @@ for (const record of git('ls-files', '--stage', '-z').split('\0').filter(Boolean
   const [header,path] = record.split('\t'), [mode,oid,stage] = header.split(' ');
   if(mode==='120000')fail(path,'staged-symlink');
   if(stage!=='0')fail(path,'unmerged-index');
-  if(!allowed(path))fail(path,'outside-public-allowlist');
   inspect(`staged ${path}`,git('cat-file','blob',oid));
 }
 const objects = git('rev-list', '--objects', '--all').trim().split('\n').filter(Boolean);
@@ -69,11 +63,9 @@ for (const oid of git('rev-list', '--all').trim().split('\n').filter(Boolean)) {
     const email = /<([^>]+)>/.exec(line)?.[1];
     if (email && !email.endsWith('@users.noreply.github.com') && email !== 'noreply@github.com') fail(`commit ${oid.slice(0, 12)}`, 'non-public-commit-email');
   }
-  // rev-list names each blob only once; inspect every tree path as well.
-  // A shared blob can appear under both an approved and a forbidden path.
+  // rev-list names each blob only once; check every tree entry's mode/type too.
   for(const entry of git('ls-tree','-r','-z','--full-tree',oid).split('\0').filter(Boolean)) {
     const [header,path] = entry.split('\t'), [mode,type] = header.split(' ');
-    if(!allowed(path))fail(`history ${oid.slice(0,12)} ${path}`,'outside-public-allowlist');
     if(type!=='blob' || !['100644','100755'].includes(mode))fail(`history ${oid.slice(0,12)} ${path}`,'non-regular-history-entry');
   }
 }
@@ -81,7 +73,6 @@ let blobs = 0;
 for (const object of objects) {
   const split = object.indexOf(' '), oid = split < 0 ? object : object.slice(0, split), path = split < 0 ? '' : object.slice(split + 1);
   if (git('cat-file', '-t', oid).trim() !== 'blob') continue;
-  if (!allowed(path)) fail(`history ${oid.slice(0, 12)}`, 'outside-public-allowlist');
   inspect(`history ${oid.slice(0, 12)} ${path}`, git('cat-file', 'blob', oid)); blobs++;
 }
 let artifacts=0;

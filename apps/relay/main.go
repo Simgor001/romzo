@@ -26,22 +26,13 @@ func main() {
 		fmt.Println(version)
 		return
 	}
-	if len(os.Args) == 2 && os.Args[1] == "openapi" {
-		out, e := openapiYAML()
-		if e != nil {
-			fmt.Fprintln(os.Stderr, e)
-			os.Exit(1)
-		}
-		fmt.Print(string(out))
-		return
-	}
 	if len(os.Args) == 3 && os.Args[1] == "--env-file" {
 		if e := loadEnv(os.Args[2]); e != nil {
 			fmt.Fprintln(os.Stderr, "configuration file could not be loaded")
 			os.Exit(1)
 		}
 	} else if len(os.Args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: relay [init | rotate-password | openapi | -version | --env-file PATH]")
+		fmt.Fprintln(os.Stderr, "usage: relay [init | rotate-password | -version | --env-file PATH]")
 		os.Exit(1)
 	}
 	c, e := config()
