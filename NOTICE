@@ -2,5 +2,5 @@ Romzo
 Copyright 2026 Romzo contributors
 
 This repository contains the Romzo relay server, client SDK and shared protocol
-fixtures. The ru-relay/v1 wire identifier and /_relic/v1 API paths are retained
-for compatibility. Third-party components retain their original licenses.
+fixtures. The public protocol is romzo/v1, with /api/v1 HTTP routes and /ws
+for WebSocket connections. Third-party components retain their original licenses.

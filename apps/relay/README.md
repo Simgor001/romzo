@@ -1,5 +1,7 @@
 # Romzo relay
 
+中文：[README_zh.md](README_zh.md)
+
 Standalone Go service; no game engine, static client, database or WebRTC.
 
 ## Run
@@ -9,59 +11,97 @@ go build -trimpath -o relay .
 relay init > .env.secrets
 ```
 
-Keep .env.secrets private. Copy .env.example to .env, fill its empty secret
-values locally, set PUBLIC_ORIGIN and CLIENT_ORIGINS, then run
-`relay --env-file .env`. The environment file is ignored by Git. The server
-serves HTTP/WS behind a TLS reverse proxy; PUBLIC_ORIGIN must be a canonical
-HTTPS origin, except for explicit loopback development. Do not expose the
-unencrypted listener publicly. `relay -version` reports 1.2.0.
+1. Keep .env.secrets private.
+2. Copy `.env.example` to `.env` and fill its empty secret values locally.
+3. Set `PUBLIC_ORIGIN` and `CLIENT_ORIGINS`.
+4. Run `relay --env-file .env`. The environment file is ignored by Git.
 
-`CREATE_AUTH=password` verifies a PBKDF2 challenge proof; anonymous/off skip
-that proof. Optional TURNSTILE_SECRET independently enforces Turnstile on room
-creation only. Enable it for a public anonymous demo. Idempotent allocation
-replays do not revalidate a spent Turnstile token. Private secret values may
-instead be supplied through corresponding *_FILE variables.
+The server serves HTTP/WS behind a TLS reverse proxy; PUBLIC_ORIGIN must be a
+canonical HTTPS origin, except for explicit loopback development. Do not expose
+the unencrypted listener publicly. `relay -version` reports 1.2.0.
 
-Keep AUTH_SALT and TICKET_KEY stable across normal restarts. Password rotation
-requires a fresh salt. Losing or rotating the ticket key invalidates recovery.
-Rooms are memory-only: clients with unexpired recovery tickets restore the
-room and perform application-layer resynchronization after a restart.
+## Configuration
 
-## Docker / TLS
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `CREATE_AUTH` | — | `password` verifies a PBKDF2 challenge proof; `anonymous`/`off` skip that proof. |
+| `TURNSTILE_SECRET` | — (optional) | Independently enforces Turnstile on room creation only; enable it for a public anonymous demo. Idempotent allocation replays do not revalidate a spent Turnstile token. |
+| `*_FILE` variants | — | Private secret values may instead be supplied through the corresponding `*_FILE` variables. |
+| `AUTH_SALT` | — | Keep stable across normal restarts. Password rotation requires a fresh salt. |
+| `TICKET_KEY` | — | Keep stable across normal restarts. Losing or rotating the ticket key invalidates recovery. |
 
-From this directory: `docker compose up --build -d`. The image runs as an
-unprivileged user, with a read-only filesystem, dropped capabilities and a
-loopback host-port mapping. It includes CA roots for outbound Turnstile HTTPS.
-Configure your own domain and TLS; deploy/nginx.conf is a placeholder example.
-Only configure TRUSTED_PROXIES for actual trusted proxy source CIDRs. CORS and
-WS origins must match exact CLIENT_ORIGINS; they do not establish identity.
-The server does not host clients or redirects. A separate static-client
-configuration example is in deploy/nginx-same-origin.conf.
+Rooms are memory-only: clients with unexpired recovery tickets restore the room
+and perform application-layer resynchronization after a restart.
 
-## Limits / contract
+## Docker
 
-Defaults: 64 rooms, 512 connections, 64 unauthenticated connections and 32
-connections per room. Authentication deadline 5 seconds; admission lifetime
-60 seconds; idle connection limit 45 seconds. New idle rooms expire after
-10 minutes; active recovery leases last at most 30 minutes.
+From this directory:
 
-Per connection: 64 frames/s, 1 MiB/s with a two-second burst. Per IP aggregate
-inbound authenticated WS bytes: IP_BYTES_PER_SECOND (default 1 MiB/s), shared
-across rooms/channels/connections; raw JSON whitespace counts. Each connection
-also retains its own limit. This is not an outbound fanout bandwidth budget.
-For a capped demo, consider MAX_ROOMS=32, MAX_CONNECTIONS=128 and both byte
-rates at 262144. Queue/frame/payload limits and terminal errors are specified
-in FRAMES.md.
+```sh
+docker compose up --build -d
+```
 
-Options accept any canonical JSON root, safe integers only, bounded by
-MAX_OPTIONS_BYTES (default and maximum 4096 UTF-8 raw bytes). The server checks
-configHash and host signatures; application clients validate game rules.
-Server release 1.2.0 retains wire protocol ru-relay/v1 and the signing domains.
-A recovery ticket alone does not establish multi-instance routing or failover.
+- The image runs as an unprivileged user, with a read-only filesystem, dropped capabilities and a loopback host-port mapping.
+- It includes CA roots for outbound Turnstile HTTPS.
+- Configure your own domain and TLS; `deploy/nginx.conf` is a placeholder example.
+- Only configure `TRUSTED_PROXIES` for actual trusted proxy source CIDRs. CORS and WS origins must match exact `CLIENT_ORIGINS`; they do not establish identity.
+- The server does not host clients or redirects. A separate static-client configuration example is in `deploy/nginx-same-origin.conf`.
+
+Port convention: the relay listens on 9224 by default; terminate TLS on 9224
+either in a reverse proxy in front of the relay or in the relay listener
+itself. Note that Cloudflare's proxied (orange-cloud) mode does not support
+5-digit ports: with a 5-digit port use DNS-only records with your own
+certificate; Turnstile is unaffected.
+
+## Limits
+
+Defaults:
+
+| Limit | Default | Notes |
+| --- | --- | --- |
+| Rooms (`MAX_ROOMS`) | 64 | |
+| Connections (`MAX_CONNECTIONS`) | 512 | |
+| Unauthenticated connections | 64 | |
+| Connections per room | 32 | |
+| Authentication deadline | 5 seconds | |
+| Admission lifetime | 60 seconds | |
+| Idle connection limit | 45 seconds | |
+| New idle room expiry | 10 minutes | |
+| Active recovery lease | at most 30 minutes | |
+
+Per connection:
+
+| Limit | Default | Notes |
+| --- | --- | --- |
+| Frame rate | 64 frames/s | |
+| Bandwidth | 1 MiB/s | Two-second burst. |
+
+Per IP:
+
+| Limit | Default | Notes |
+| --- | --- | --- |
+| Aggregate inbound authenticated WS bytes per IP (`IP_BYTES_PER_SECOND`) | 1 MiB/s | Shared across rooms/channels/connections; raw JSON whitespace counts. Each connection also retains its own limit. |
+
+Options:
+
+| Limit | Default | Notes |
+| --- | --- | --- |
+| `MAX_OPTIONS_BYTES` | 4096 UTF-8 raw bytes | Default and maximum. Options accept any canonical JSON root, safe integers only. The server checks configHash and host signatures; application clients validate game rules. |
+
+For a capped demo, consider `MAX_ROOMS=32`, `MAX_CONNECTIONS=128` and both
+byte rates at 262144. Queue/frame/payload limits and terminal errors are
+specified in FRAMES.md.
+
+Outbound fanout bandwidth lies outside these limits.
+
+Server release 1.2.0 speaks wire protocol `romzo/v1` with updated
+domains. Multi-instance routing and failover require more than a recovery
+ticket.
 
 ## Verify
 
 From the repository root: `npm ci && npm run verify`. Within this directory:
-`go test ./...` and `go test -race ./...`. `relay openapi` emits the generated
-HTTP specification; tests compare it with openapi.yaml. Shared fixtures under
-protocol/ contain public deterministic test values, not production secrets.
+`go test ./...` and `go test -race ./...`. `openapi.yaml` is the single source
+of truth for the HTTP surface; a contract test checks that it covers every
+endpoint. Shared fixtures under `protocol/` contain public deterministic test
+values; never use them as production secrets.
