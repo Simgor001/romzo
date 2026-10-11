@@ -44,11 +44,14 @@ func invoke(t *testing.T, s *Server, method, path string, v any, status int, out
 }
 func allocateTest(t *testing.T, s *Server) (SignedDescriptor, ed25519.PrivateKey, ed25519.PrivateKey, SignedTicket, SignedTicket) {
 	t.Helper()
+	return allocateOptionsTest(t, s, json.RawMessage(`{"players":4,"identityMode":"mixed","factionCounts":null,"threshold":11}`))
+}
+func allocateOptionsTest(t *testing.T, s *Server, options json.RawMessage) (SignedDescriptor, ed25519.PrivateKey, ed25519.PrivateKey, SignedTicket, SignedTicket) {
+	t.Helper()
 	hp, h, _ := ed25519.GenerateKey(rand.Reader)
 	tp, key, _ := ed25519.GenerateKey(rand.Reader)
 	var c struct{ Challenge string }
 	invoke(t, s, "POST", api+"room-challenges", map[string]any{}, 200, &c)
-	options := json.RawMessage(`{"players":4,"identityMode":"mixed","factionCounts":null,"threshold":11}`)
 	q := AllocationRequest{protocol, s.cfg.Origin, c.Challenge, randomHex(16), hex.EncodeToString(hp), hex.EncodeToString(tp), hash("romzo/lobby-options/v1", options), randomHex(16), options}
 	proof := ""
 	if s.cfg.Auth == "password" {
@@ -373,5 +376,131 @@ func TestRestartRestorationAuthenticatesOriginalSocketKey(t *testing.T) {
 	writeTest(t, restored, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "s"})
 	if readTest(t, restored)["kind"] != "ack" || fresh.rooms[d.Descriptor.Code].Signed.Descriptor.Instance != d.Descriptor.Instance {
 		t.Fatal("original socket identity or instance not restored")
+	}
+}
+
+func TestDeclarativeChannelsEndToEnd(t *testing.T) {
+	s := newServer(testConfig())
+	options := json.RawMessage(`{"players":4,"channels":[{"name":"move","maxFrameBytes":262144},{"name":"chat","maxFrameBytes":16384}]}`)
+	d, _, key, ticket, _ := allocateOptionsTest(t, s, options)
+	room := s.rooms[d.Descriptor.Code]
+	if room.Channels["move"] != payloadLimit || room.Channels["chat"] != controlLimit {
+		t.Fatalf("declared channels not stored: %v", room.Channels)
+	}
+	h := httptest.NewServer(s)
+	defer h.Close()
+	a := connectTest(t, h.URL, ticket, key)
+	defer a.CloseNow()
+	_, guest, _ := ed25519.GenerateKey(rand.Reader)
+	var admission struct{ Admission SignedTicket }
+	invoke(t, s, "POST", api+"rooms/"+d.Descriptor.Code+"/admissions", map[string]string{"key": hex.EncodeToString(guest.Public().(ed25519.PublicKey))}, 200, &admission)
+	b := connectTest(t, h.URL, admission.Admission, guest)
+	defer b.CloseNow()
+	writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "channel": "move", "id": "1"})
+	if readTest(t, a)["kind"] != "ack" {
+		t.Fatal("declared channel subscribe failed")
+	}
+	writeTest(t, b, map[string]any{"v": protocol, "kind": "subscribe", "channel": "move", "id": "2"})
+	joinB := readTest(t, b)
+	_ = readTest(t, b)
+	joinA := readTest(t, a)
+	if joinA["kind"] != "join" || joinB["kind"] != "join" {
+		t.Fatal("presence missing on declared channel")
+	}
+	writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "channel": "move", "target": joinA["peer"], "id": "s", "value": map[string]any{"seq": 7}})
+	_ = readTest(t, a)
+	if got := readTest(t, b)["value"].(map[string]any); got["seq"] != json.Number("7") {
+		t.Fatal("declared channel forwarding broken")
+	}
+	// Compatibility names are not declared, so they are unknown here.
+	writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "s"})
+	f := readTest(t, a)
+	if f["kind"] != "error" || f["error"] != "invalid_channel" {
+		t.Fatalf("undeclared compatibility channel accepted: %v", f)
+	}
+	if _, _, e := a.Read(context.Background()); e == nil {
+		t.Fatal("undeclared channel did not terminate")
+	}
+	writeTest(t, b, map[string]any{"v": protocol, "kind": "subscribe", "channel": "chat", "id": "c"})
+	for {
+		f = readTest(t, b)
+		if f["kind"] == "receive" {
+			t.Fatal("unexpected receive before chat subscribe ack")
+		}
+		if f["kind"] == "ack" {
+			break
+		}
+	}
+	writeTest(t, b, map[string]any{"v": protocol, "kind": "send", "channel": "chat", "id": "big", "value": strings.Repeat("x", 100*1024)})
+	f = readTest(t, b)
+	if f["kind"] != "error" || f["error"] != "message_bound_or_unsubscribed" {
+		t.Fatalf("oversized declared payload accepted: %v", f)
+	}
+	if _, _, e := b.Read(context.Background()); e == nil {
+		t.Fatal("oversized declared payload did not terminate")
+	}
+}
+
+func TestChannelDeclarationValidation(t *testing.T) {
+	valid := `{"players":2,"channels":[{"name":"table","maxFrameBytes":262144},{"name":"chat","maxFrameBytes":16384}]}`
+	cases := map[string]string{
+		"too_many":           `{"channels":[{"name":"c1","maxFrameBytes":256},{"name":"c2","maxFrameBytes":256},{"name":"c3","maxFrameBytes":256},{"name":"c4","maxFrameBytes":256},{"name":"c5","maxFrameBytes":256},{"name":"c6","maxFrameBytes":256},{"name":"c7","maxFrameBytes":256},{"name":"c8","maxFrameBytes":256},{"name":"c9","maxFrameBytes":256}]}`,
+		"duplicate":          `{"channels":[{"name":"table","maxFrameBytes":256},{"name":"table","maxFrameBytes":512}]}`,
+		"uppercase":          `{"channels":[{"name":"Table","maxFrameBytes":256}]}`,
+		"leading_hyphen":     `{"channels":[{"name":"-table","maxFrameBytes":256}]}`,
+		"empty_name":         `{"channels":[{"name":"","maxFrameBytes":256}]}`,
+		"name_too_long":      `{"channels":[{"name":"` + strings.Repeat("a", 33) + `","maxFrameBytes":256}]}`,
+		"space_in_name":      `{"channels":[{"name":"a b","maxFrameBytes":256}]}`,
+		"limit_too_low":      `{"channels":[{"name":"table","maxFrameBytes":255}]}`,
+		"limit_too_high":     `{"channels":[{"name":"table","maxFrameBytes":262145}]}`,
+		"limit_non_integer":  `{"channels":[{"name":"table","maxFrameBytes":1.5}]}`,
+		"unknown_field":      `{"channels":[{"name":"table","maxFrameBytes":256,"extra":1}]}`,
+		"channels_not_array": `{"channels":{"name":"table","maxFrameBytes":256}}`,
+		"entry_not_object":   `{"channels":["table"]}`,
+	}
+	for name, options := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := newServer(testConfig())
+			hp, _, _ := ed25519.GenerateKey(rand.Reader)
+			tp, _, _ := ed25519.GenerateKey(rand.Reader)
+			var c struct{ Challenge string }
+			invoke(t, s, "POST", api+"room-challenges", map[string]any{}, 200, &c)
+			raw := json.RawMessage(options)
+			q := AllocationRequest{protocol, s.cfg.Origin, c.Challenge, randomHex(16), hex.EncodeToString(hp), hex.EncodeToString(tp), hash("romzo/lobby-options/v1", raw), randomHex(16), raw}
+			invoke(t, s, "POST", api+"rooms", map[string]any{"request": q, "proof": ""}, 400, nil)
+		})
+	}
+	t.Run("boundaries_and_restore", func(t *testing.T) {
+		s := newServer(testConfig())
+		edge := `{"channels":[{"name":"` + strings.Repeat("a", 32) + `","maxFrameBytes":256},{"name":"z","maxFrameBytes":262144}]}`
+		d, _, key, _, recovery := allocateOptionsTest(t, s, json.RawMessage(edge))
+		fresh := newServer(s.cfg)
+		body := map[string]any{"signed": d, "recovery": recovery, "signature": signed(key, "romzo/relay-restore/v1", recovery)}
+		invoke(t, fresh, "POST", api+"rooms/"+d.Descriptor.Code+"/restore", body, 200, nil)
+		restored := fresh.rooms[d.Descriptor.Code]
+		if restored.Channels[strings.Repeat("a", 32)] != 256 || restored.Channels["z"] != payloadLimit {
+			t.Fatalf("restored channels mismatch: %v", restored.Channels)
+		}
+	})
+	t.Run("valid_declaration", func(t *testing.T) {
+		s := newServer(testConfig())
+		d, _, _, _, _ := allocateOptionsTest(t, s, json.RawMessage(valid))
+		if s.rooms[d.Descriptor.Code].Channels["table"] != payloadLimit || s.rooms[d.Descriptor.Code].Channels["chat"] != controlLimit {
+			t.Fatal("valid declaration rejected or mis-stored")
+		}
+	})
+}
+
+func TestDefaultChannelsRegression(t *testing.T) {
+	s := newServer(testConfig())
+	d, _, _, _, _ := allocateTest(t, s)
+	channels := s.rooms[d.Descriptor.Code].Channels
+	if len(channels) != 3 || channels["discovery"] != controlLimit || channels["lobby"] != controlLimit || channels["game"] != payloadLimit {
+		t.Fatalf("compatibility defaults changed: %v", channels)
+	}
+	for name, limit := range channels {
+		if limit < 256 || limit > payloadLimit {
+			t.Fatalf("default channel limit out of range: %s=%d", name, limit)
+		}
 	}
 }

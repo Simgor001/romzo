@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ type Room struct {
 	Confirmed, EverConnected bool
 	Active                   time.Time
 	Peers                    map[string]*Peer
+	Channels                 map[string]int
 }
 type bucket struct {
 	tokens float64
@@ -316,6 +318,64 @@ func validOptions(data json.RawMessage) bool {
 	_, err := canonical(value)
 	return err == nil
 }
+
+var channelNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+
+func defaultChannelSet() map[string]int {
+	channels := make(map[string]int, len(defaultChannels))
+	for name, limit := range defaultChannels {
+		channels[name] = limit
+	}
+	return channels
+}
+
+// channelsFromOptions extracts the declared channel set from opaque room
+// options; options without a "channels" key keep the compatibility defaults.
+// The relay only validates name syntax and numeric bounds — channel meaning
+// is application policy, and configHash binds every peer of a room to the
+// same declaration.
+func channelsFromOptions(data json.RawMessage) (map[string]int, error) {
+	var root any
+	if err := decode(data, &root); err != nil {
+		return nil, err
+	}
+	object, ok := root.(map[string]any)
+	if !ok {
+		return defaultChannelSet(), nil
+	}
+	raw, present := object["channels"]
+	if !present || raw == nil {
+		return defaultChannelSet(), nil
+	}
+	blob, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	var declared []struct {
+		Name          string `json:"name"`
+		MaxFrameBytes int    `json:"maxFrameBytes"`
+	}
+	if err := decode(blob, &declared); err != nil {
+		return nil, err
+	}
+	if len(declared) > 8 {
+		return nil, errors.New("too many channels")
+	}
+	channels := make(map[string]int, len(declared))
+	for _, c := range declared {
+		if !channelNamePattern.MatchString(c.Name) {
+			return nil, errors.New("invalid channel name")
+		}
+		if c.MaxFrameBytes < 256 || c.MaxFrameBytes > payloadLimit {
+			return nil, errors.New("channel frame limit out of range")
+		}
+		if _, duplicate := channels[c.Name]; duplicate {
+			return nil, errors.New("duplicate channel")
+		}
+		channels[c.Name] = c.MaxFrameBytes
+	}
+	return channels, nil
+}
 func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Request   AllocationRequest `json:"request"`
@@ -327,6 +387,11 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 	}
 	q := body.Request
 	if q.Protocol != protocol || q.Origin != s.cfg.Origin || !validHex(q.RequestID, 16) || !validHex(q.Host, 32) || !validHex(q.Transport, 32) || !validHex(q.Capability, 16) || len(q.Options) > s.cfg.OptionsBytes || !validOptions(q.Options) || hash("romzo/lobby-options/v1", q.Options) != q.ConfigHash {
+		failure(w, 400, "invalid_allocation")
+		return
+	}
+	channels, err := channelsFromOptions(q.Options)
+	if err != nil {
 		failure(w, 400, "invalid_allocation")
 		return
 	}
@@ -378,7 +443,7 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 		code = randomCode()
 	}
 	d := Descriptor{protocol, s.cfg.Origin, code, randomHex(16), q.Host, q.Transport, q.Capability, q.ConfigHash, q.Options}
-	room := &Room{quotaSubject: subject, Signed: SignedDescriptor{Descriptor: d}, Request: q, RequestHash: h, Expires: s.now().Add(30 * time.Second), Active: s.now(), Peers: map[string]*Peer{}}
+	room := &Room{quotaSubject: subject, Signed: SignedDescriptor{Descriptor: d}, Request: q, RequestHash: h, Expires: s.now().Add(30 * time.Second), Active: s.now(), Peers: map[string]*Peer{}, Channels: channels}
 	s.rooms[code] = room
 	s.requests[q.RequestID] = code
 	result(w, 200, d)
@@ -479,6 +544,11 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
 		failure(w, 403, "restore_failed")
 		return
 	}
+	channels, err := channelsFromOptions(d.Options)
+	if err != nil {
+		failure(w, 403, "restore_failed")
+		return
+	}
 	room := s.rooms[code]
 	if room != nil && hash("romzo/relay-descriptor/v1", room.Signed) != t.Digest {
 		failure(w, 409, "room_identity_conflict")
@@ -491,7 +561,7 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
 		}
 		// Recovery reinstates the existing lease. Only authenticated subscription
 		// and keepalive may renew it; HTTP replay cannot mint extra lifetime.
-		room = &Room{Signed: b.Signed, Confirmed: true, EverConnected: true, Active: time.UnixMilli(t.Expires).Add(-30 * time.Minute), Peers: map[string]*Peer{}}
+		room = &Room{Signed: b.Signed, Confirmed: true, EverConnected: true, Active: time.UnixMilli(t.Expires).Add(-30 * time.Minute), Peers: map[string]*Peer{}, Channels: channels}
 		s.rooms[code] = room
 	}
 	purpose := "guest"

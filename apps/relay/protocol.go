@@ -18,12 +18,21 @@ import (
 )
 
 const protocol = "romzo/v1"
-const version = "1.2.0"
+const version = "1.3.0"
 const api = "/api/v1/"
 const wsPath = "/ws"
 const controlLimit = 16 * 1024
 const payloadLimit = 256 * 1024
 const frameLimit = 288 * 1024
+
+// defaultChannels preserves pre-1.3.0 behavior for allocation requests whose
+// options do not declare a channel set: the relay's original three channels
+// with their per-channel send-payload limits.
+var defaultChannels = map[string]int{
+	"discovery": controlLimit,
+	"lobby":     controlLimit,
+	"game":      payloadLimit,
+}
 
 func randomHex(n int) string {
 	b := make([]byte, n)

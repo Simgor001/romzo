@@ -225,7 +225,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		response := map[string]any{"v": protocol, "kind": "ack", "id": f.ID}
 		switch f.Kind {
 		case "subscribe":
-			if len(wire(f)) > controlLimit || (f.Channel != "discovery" && f.Channel != "lobby" && f.Channel != "game") {
+			if _, ok := room.Channels[f.Channel]; !ok {
 				closeReason = "invalid_channel"
 				s.mu.Unlock()
 				s.terminate(p, closeReason)
@@ -253,7 +253,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case "send":
-			if !p.channels[f.Channel] || len(f.Value) == 0 || len(f.Value) > payloadLimit || (f.Channel != "game" && len(f.Value) > controlLimit) {
+			if !p.channels[f.Channel] || len(f.Value) == 0 || len(f.Value) > payloadLimit || len(f.Value) > room.Channels[f.Channel] {
 				closeReason = "message_bound_or_unsubscribed"
 				s.mu.Unlock()
 				s.terminate(p, closeReason)
