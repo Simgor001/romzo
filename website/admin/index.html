@@ -1,6 +1,10 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Romzo · 节点状态</title><link rel="stylesheet" href="/admin/style.css"><script src="/admin/app.js" defer></script></head>
-<body><header><strong>Romzo <span class="dot" aria-hidden="true"></span></strong><h1 data-i18n="title">节点状态</h1><button id="language" type="button">English</button></header>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Romzo · 节点状态</title><meta name="description" content="Romzo relay operator console."><link rel="icon" type="image/svg+xml" href="../romzo-icon.svg"><link rel="stylesheet" href="/admin/style.css"><script src="/admin/app.js" defer></script></head>
+<body><header><div class="bar">
+<a class="wordmark" href="../"><img src="../romzo-icon.svg" width="26" height="26" alt="" aria-hidden="true">Romzo</a>
+<span class="console-title" data-i18n="title">节点状态</span>
+<button id="language" type="button">English</button>
+</div></header>
 <main>
 <form id="login"><label for="key" data-i18n="key">访问密钥</label><div class="login-row"><input id="key" type="password" required minlength="32" maxlength="256" autocomplete="off" spellcheck="false"><button class="primary" data-i18n="connect">查看</button></div></form>
 <p id="status" role="status" aria-live="polite"></p>
