@@ -160,5 +160,8 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p 33822 api.uusha.top >> ~/.ssh/known_hosts
-          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key -p 33822 -o BatchMode=yes" \
-            website/ ubuntu@api.uusha.top:/opt/1panel/www/sites/romzo.net/index/
+          # The deploy key is jailed by rrsync to the site directory, so the
+          # target must be relative to that jail ("." = site root), not an
+          # absolute path - an absolute path gets prefixed by rrsync and fails.
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key -p 33822 -o BatchMode=yes" website/ ubuntu@api.uusha.top:.
+
