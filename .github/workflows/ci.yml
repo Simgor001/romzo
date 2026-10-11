@@ -2,7 +2,7 @@ name: Verify Romzo
 on:
   push:
     branches: ['**']
-    tags: ['v*']
+    tags: ['v*', 'client-v*']
   pull_request:
   workflow_dispatch:
 permissions:
