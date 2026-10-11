@@ -10,7 +10,7 @@ Romzo 客户端 SDK — 「房间型不透明中继」（room-based opaque WebSo
 
 - **房间（room）** 由 10 位房间码标识，房主持 `host` 密钥对房间描述符（descriptor）签名确认。
 - **票据（ticket）**：短期 admission 票据（60 秒、单次握手）用于 WebSocket 认证；长期 recovery 票据用于崩溃/重启后恢复房间。
-- **通道（channel）**：`discovery` / `lobby` / `game`，订阅后可收发热更新（join/leave/receive 帧）。
+- **通道（channel）**：房间 options 可声明至多 8 个频道（如 `{ "name": "table", "maxFrameBytes": 262144 }`），peer 订阅所声明的名字后即可收发热更新（join/leave/receive 帧）。options 不带 `channels` 时使用兼容默认 `discovery` / `lobby` / `game`（16 KiB / 16 KiB / 256 KiB），SDK 以 `DEFAULT_CHANNELS` 导出。中继只校验名字语法与数值边界；频道语义由应用自定。
 - 中继不持久化消息：至多一次投递，客户端信封层负责可靠性（见 FRAMES_zh.md）。
 
 ## 建房 → 确认 → 连接（房主）
@@ -18,6 +18,13 @@ Romzo 客户端 SDK — 「房间型不透明中继」（room-based opaque WebSo
 ```ts
 import { createRoom, RelaySession } from "@romzo/client";
 
+const roomOptions = {
+  players: 4,
+  channels: [
+    { name: "table", maxFrameBytes: 262144 },
+    { name: "chat", maxFrameBytes: 16384 },
+  ],
+};
 const room = await createRoom("https://relay.example", roomOptions, {
   password: creationPassword,        // relay 为 password 认证时必填
   turnstileToken: turnstileToken,    // Discovery.turnstile 为 true 时必填
@@ -33,9 +40,11 @@ session.on("join", (_p, { channel, peer, key }) => { /* peer 公钥 key 可用�
 session.on("receive", (value, { channel, peer }) => { /* 他人 send 的负载 */ });
 session.on("close", () => { /* 终端 error 帧或传输断开；用 recovery 票据重连 */ });
 
-await session.subscribe("lobby");
-await session.send("lobby", { hello: "world" });
+await session.subscribe("table");
+await session.send("table", { hello: "world" });
 ```
+
+同房所有 peer 必须认同同一份声明：描述符 `configHash` 逐字节覆盖 options，超过频道声明 `maxFrameBytes` 的 `send` 会被中继以终端错误 `message_bound_or_unsubscribed` 拒绝。
 
 ## 访客加入
 
@@ -45,7 +54,7 @@ import { joinRoom, RelaySession } from "@romzo/client";
 const joined = await joinRoom("https://relay.example", "ABCD2345EF");
 const url = joined.signedDescriptor.descriptor.origin.replace(/^http/, "ws") + "/ws";
 const session = await RelaySession.connect(url, joined.admission, joined.transport);
-await session.subscribe("lobby");
+await session.subscribe("table");
 ```
 
 ## 邀请

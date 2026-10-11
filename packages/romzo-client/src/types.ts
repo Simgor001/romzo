@@ -4,11 +4,32 @@ export const API = "/api/v1/";
 export const WS_PATH = "/ws";
 export const DISCOVERY_PATH = "/.well-known/romzo";
 
-/** Room channels a peer may subscribe to. */
-export type Channel = "discovery" | "lobby" | "game";
+/** Absolute per-message payload cap enforced by the relay (256 KiB). */
+export const MAX_FRAME_BYTES = 256 * 1024;
 
-/** Subset of channels, for APIs that only make sense on some of them. */
-export const CHANNELS: readonly Channel[] = ["discovery", "lobby", "game"];
+/** A channel declared in room options: its name and send-payload limit in bytes. */
+export interface ChannelDeclaration {
+  /** Lowercase letter, then lowercase letters/digits/hyphens, at most 32 characters. */
+  name: string;
+  /** Per-channel send-payload limit; between 256 and MAX_FRAME_BYTES. */
+  maxFrameBytes: number;
+}
+
+/**
+ * Channel set every room has when its options declare no channels: the
+ * pre-1.3.0 compatibility defaults (discovery/lobby at 16 KiB, game at 256 KiB).
+ */
+export const DEFAULT_CHANNELS: readonly ChannelDeclaration[] = [
+  { name: "discovery", maxFrameBytes: 16 * 1024 },
+  { name: "lobby", maxFrameBytes: 16 * 1024 },
+  { name: "game", maxFrameBytes: 256 * 1024 },
+];
+
+/** Name of a room channel — any name the room's options declare. */
+export type Channel = string;
+
+/** Names of the compatibility default channels; declared rooms may use others. */
+export const CHANNELS: readonly Channel[] = DEFAULT_CHANNELS.map((c) => c.name);
 
 /** POST /api/v1/rooms request payload (challenge-bound, idempotent). */
 export interface AllocationRequest {

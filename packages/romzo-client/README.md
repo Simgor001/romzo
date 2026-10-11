@@ -15,7 +15,7 @@ against the shared test vectors in `protocol/relay-v1-vectors.json`.
 
 - A **room** is identified by a 10-character room code; the host signs the room descriptor with the `host` key pair.
 - **Tickets**: short-lived admission tickets (60 seconds, single handshake) authenticate the WebSocket; long-lived recovery tickets restore a room after a crash/restart.
-- **Channels**: `discovery` / `lobby` / `game`; once subscribed you receive live updates (join/leave/receive frames).
+- **Channels**: the room options may declare up to 8 channels (`{ "name": "table", "maxFrameBytes": 262144 }`); peers subscribe to declared names and receive live updates (join/leave/receive frames). Options without a `channels` key get the compatibility defaults `discovery` / `lobby` / `game` (16 KiB / 16 KiB / 256 KiB) exported as `DEFAULT_CHANNELS`. The relay only checks name syntax and size bounds; channel meaning is application policy.
 - The relay does not persist messages: at-most-once delivery; the client envelope layer handles reliability (see FRAMES.md).
 
 ## Create → confirm → connect (host)
@@ -23,6 +23,13 @@ against the shared test vectors in `protocol/relay-v1-vectors.json`.
 ```ts
 import { createRoom, RelaySession } from "@romzo/client";
 
+const roomOptions = {
+  players: 4,
+  channels: [
+    { name: "table", maxFrameBytes: 262144 },
+    { name: "chat", maxFrameBytes: 16384 },
+  ],
+};
 const room = await createRoom("https://relay.example", roomOptions, {
   password: creationPassword,        // required when the relay uses password auth
   turnstileToken: turnstileToken,    // required when Discovery.turnstile is true
@@ -38,9 +45,14 @@ session.on("join", (_p, { channel, peer, key }) => { /* peer public key for end-
 session.on("receive", (value, { channel, peer }) => { /* another peer's send payload */ });
 session.on("close", () => { /* terminal error frame or transport drop; reconnect with the recovery ticket */ });
 
-await session.subscribe("lobby");
-await session.send("lobby", { hello: "world" });
+await session.subscribe("table");
+await session.send("table", { hello: "world" });
 ```
+
+Peers of the same room must agree on the declaration: the descriptor
+`configHash` covers the options verbatim, and the relay rejects a `send`
+payload larger than the channel's declared `maxFrameBytes` with the terminal
+error `message_bound_or_unsubscribed`.
 
 ## Guest join
 
@@ -50,7 +62,7 @@ import { joinRoom, RelaySession } from "@romzo/client";
 const joined = await joinRoom("https://relay.example", "ABCD2345EF");
 const url = joined.signedDescriptor.descriptor.origin.replace(/^http/, "ws") + "/ws";
 const session = await RelaySession.connect(url, joined.admission, joined.transport);
-await session.subscribe("lobby");
+await session.subscribe("table");
 ```
 
 ## Invites

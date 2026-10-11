@@ -1,6 +1,6 @@
 import { hash } from "./canonical.js";
 import { sign } from "./crypto.js";
-import { PROTOCOL } from "./types.js";
+import { MAX_FRAME_BYTES, PROTOCOL } from "./types.js";
 import type {
   ChallengeValue,
   Channel,
@@ -65,7 +65,6 @@ interface Pending {
 }
 
 const CONTROL_LIMIT = 16 * 1024;
-const PAYLOAD_LIMIT = 256 * 1024;
 
 function encodeFrame(frame: Record<string, unknown>): string {
   return JSON.stringify({ v: PROTOCOL, ...frame });
@@ -308,9 +307,10 @@ export class RelaySession {
   /**
    * Send a payload to the channel's members (or one member via target).
    * Rejects with RelaySessionError("invalid_target") if the target is gone.
+   * Per-channel size limits are declared in the room options and enforced
+   * by the relay; the SDK only pre-checks the absolute payload cap.
    */
   send(channel: Channel, value: unknown, target?: string): Promise<void> {
-    const limit = channel === "game" ? PAYLOAD_LIMIT : CONTROL_LIMIT;
     return this.request(
       {
         kind: "send",
@@ -318,7 +318,7 @@ export class RelaySession {
         value,
         ...(target !== undefined ? { target } : {}),
       },
-      limit,
+      MAX_FRAME_BYTES,
     ).then(() => undefined);
   }
 
