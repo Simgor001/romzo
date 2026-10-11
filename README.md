@@ -2,13 +2,13 @@
 
 中文：[README_zh.md](README_zh.md)
 
-A room-based opaque WebSocket relay and zero-runtime-dependency TypeScript SDK.
-The relay handles room registration, signed tickets, channel membership and
-bounded forwarding. Applications own encryption, game rules, persistence,
-reconnection and history synchronization.
+A room-based opaque WebSocket relay with a zero-runtime-dependency TypeScript SDK.
+The relay handles room registration, signed tickets, channel membership and bounded forwarding.
+Applications own encryption, rules, persistence, reconnection and history synchronization.
 
-Server release: **1.3.0**. SDK: **romzo 0.2.0**. Wire protocol:
-**romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
+Server release: **1.3.0**.
+SDK: **romzo 0.2.0**.
+Wire protocol: **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
 
@@ -22,7 +22,8 @@ Server release: **1.3.0**. SDK: **romzo 0.2.0**. Wire protocol:
 
 ## Quick start
 
-Requires Node.js 24 and Go 1.26.1. From a clean checkout:
+Requires Node.js 24 and Go 1.26.1.
+From a clean checkout:
 
 ```sh
 npm ci
@@ -33,7 +34,8 @@ npm run verify
 
 In a browser client, after obtaining a creation password from the user:
 
-The relay origin may be written with or without the scheme: bare hosts default to https, loopback hosts to http.
+The relay origin may be written with or without the scheme:
+bare hosts default to https, loopback hosts to http.
 
 ```ts
 import { createRoom, buildInviteLink, RelaySession } from 'romzo';
@@ -55,13 +57,14 @@ await session.subscribe('table');
 
 Build the SDK from this workspace with `npm run build`.
 
-Invites use `https://client/#ABCD123XYZ@relay.example.com`: an omitted port is the
-service default port 443, so a relay on any other port must write it explicitly, e.g. `@relay.example.com:9224`
-explicitly. Passwords, private keys and recovery tickets never belong in URLs.
+Invites use `https://client/#ABCD123XYZ@relay.example.com`:
 
-The application consumes and clears the fragment and owns browser-history
-recovery. The SDK allows http origins on loopback only; production relay
-origins must be HTTPS.
+- An omitted port is the service default port 9224.
+- A relay on 443 must write `@relay.example.com:443` explicitly.
+- Passwords, private keys and recovery tickets never belong in URLs.
+
+The application consumes and clears the fragment and owns browser-history recovery.
+The SDK allows http origins on loopback only; production relay origins must be HTTPS.
 
 ## Limits
 
@@ -74,19 +77,22 @@ origins must be HTTPS.
 
 ## Development
 
-Verification checks the public file boundary and reachable Git history, SDK
-unit tests and types, Go tests and race tests, shared protocol vectors,
-`openapi.yaml` as the single source of truth for the HTTP surface with a contract
-test covering every endpoint, SDK builds and a real local relay integration.
+`npm run verify` checks:
 
-`npm run build:relay` also builds Linux amd64/arm64 and Windows amd64
-binaries, checksums and dependency license notices under dist/relay.
+- the public file boundary and reachable Git history,
+- SDK unit tests and types,
+- Go tests and race tests,
+- shared protocol vectors,
+- `openapi.yaml` — the single source of truth for the HTTP surface, with a contract test covering every endpoint,
+- SDK builds,
+- a real local relay integration.
 
-The local integration starts a real Go process, creates and joins a generic
-room, authenticates two SDK sessions, forwards messages, renews tickets,
-restarts the relay and restores the room. It covers local HTTP/WS only;
-public WSS, browser clients, real networks and multi-instance setups need
-their own tests.
+`npm run build:relay` builds Linux amd64/arm64 and Windows amd64 binaries, checksums and dependency license notices under `dist/relay/`.
+
+The local integration starts a real Go process:
+it creates and joins a generic room, authenticates two SDK sessions, forwards messages, renews tickets, restarts the relay and restores the room.
+It covers local HTTP/WS only.
+Public WSS, browser clients, real networks and multi-instance setups need their own tests.
 
 ## Documentation
 
@@ -102,5 +108,6 @@ their own tests.
 
 ## License
 
-[Apache-2.0](LICENSE). Third-party dependencies keep their original licenses;
-release binaries include their license files. See [security guidance](SECURITY.md).
+[Apache-2.0](LICENSE).
+Third-party dependencies keep their original licenses; release binaries include their license files.
+See [security guidance](SECURITY.md).
