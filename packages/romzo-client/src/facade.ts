@@ -14,6 +14,7 @@ import {
   createChallenge,
   discover,
   fetchDescriptor,
+  normalizeOrigin,
   requestAdmission,
   restoreRoom,
   RelayHttpError,
@@ -135,6 +136,7 @@ export async function createRoom(
   options: unknown,
   opts: CreateRoomOptions = {},
 ): Promise<CreatedRoom> {
+  origin = normalizeOrigin(origin);
   const discovery = await discover(origin, opts);
   await opts.validateDiscovery?.(discovery);
   if (discovery.auth === "password" && !opts.password && !opts.passwordKeyProvider)
@@ -203,6 +205,7 @@ export async function joinRoom(
   code: string,
   opts: JoinRoomOptions = {},
 ): Promise<JoinedRoom> {
+  origin = normalizeOrigin(origin);
   const signedDescriptor = await fetchDescriptor(origin, code, opts);
   await verifyDescriptor(signedDescriptor, origin, code, opts.validateOptions);
   const transport = opts.transport ?? (await generateKeyPair());

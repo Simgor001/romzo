@@ -1,4 +1,4 @@
-# @romzo/client
+# romzo
 
 English: [README.md](README.md)
 
@@ -15,8 +15,10 @@ Romzo 客户端 SDK — 「房间型不透明中继」（room-based opaque WebSo
 
 ## 建房 → 确认 → 连接（房主）
 
+中继地址可以不带协议写：裸域名默认走 https，回环地址默认走 http。
+
 ```ts
-import { createRoom, RelaySession } from "@romzo/client";
+import { createRoom, RelaySession } from "romzo";
 
 const roomOptions = {
   players: 4,
@@ -25,7 +27,7 @@ const roomOptions = {
     { name: "chat", maxFrameBytes: 16384 },
   ],
 };
-const room = await createRoom("https://relay.example", roomOptions, {
+const room = await createRoom("relay.example", roomOptions, {
   password: creationPassword,        // relay 为 password 认证时必填
   turnstileToken: turnstileToken,    // Discovery.turnstile 为 true 时必填
 });
@@ -49,9 +51,9 @@ await session.send("table", { hello: "world" });
 ## 访客加入
 
 ```ts
-import { joinRoom, RelaySession } from "@romzo/client";
+import { joinRoom, RelaySession } from "romzo";
 
-const joined = await joinRoom("https://relay.example", "ABCD2345EF");
+const joined = await joinRoom("relay.example", "ABCD2345EF");
 const url = joined.signedDescriptor.descriptor.origin.replace(/^http/, "ws") + "/ws";
 const session = await RelaySession.connect(url, joined.admission, joined.transport);
 await session.subscribe("table");
@@ -60,7 +62,7 @@ await session.subscribe("table");
 ## 邀请
 
 ```ts
-import { buildInviteLink, parseInviteHash } from "@romzo/client";
+import { buildInviteLink, parseInviteHash } from "romzo";
 const link = buildInviteLink("https://romzo.net:9224", "ABCD123XYZ", "https://game.example.com/");
 // https://game.example.com/#ABCD123XYZ@romzo.net
 const address = parseInviteHash(new URL(link).hash);
@@ -76,7 +78,7 @@ const address = parseInviteHash(new URL(link).hash);
 keepalive 应答会自动更新 `session.currentRecovery()`（也可经 `onRecovery` 回调持久化）。恢复流程：
 
 ```ts
-import { restoreSession, RelaySession } from "@romzo/client";
+import { restoreSession, RelaySession } from "romzo";
 
 const restored = await restoreSession(saved.signedDescriptor, saved.recovery, saved.transport);
 const session = await RelaySession.connect(wsUrl, restored.admission, restored.transport);
@@ -92,16 +94,16 @@ const session = await RelaySession.connect(wsUrl, restored.admission, restored.t
 | `canonical` | `canonical()`、`hash(domain, v)`、`mac(key, domain, v)`、hex 工具（与 Go 实现逐字节一致） |
 | `crypto` | Ed25519 密钥生成/导入导出、`sign`/`verify`、PBKDF2 口令派生（600000 迭代）、`passwordProof` |
 | `http` | `discover`、`createChallenge`、`allocate`、`confirmRoom`、`requestAdmission`、`fetchDescriptor`、`restoreRoom`，均支持注入 `fetch`，错误抛 `RelayHttpError(code, status)` |
-| `session` | `RelaySession.connect(url, admission, identity, opts)`：四帧握手、`subscribe`/`unsubscribe`/`send`/`keepalive`、事件订阅、自动保活（可关）、`currentRecovery()`；支持注入 WebSocket 工厂 |
+| `session` | `RelaySession.connect(url, admission, identity, opts)`：四帧握手、`subscribe`/`unsubscribe`/`send`/`keepalive`、事件订阅、自动保活（可关）、`currentRecovery()`、opt-in 自动重连（`autoReconnect`，自动重新订阅已订阅频道，emit `reconnect`/`reconnecting`）；支持注入 WebSocket 工厂 |
 | 门面 | `createRoom()` / `joinRoom()` / `restoreSession()` 封装完整 HTTP 序列 |
 
 ## 测试
 
 ```sh
 npm install
-npm run check -w @romzo/client   # tsc --noEmit
-npm test -w @romzo/client        # vitest（含共享向量契约测试，无真实网络）
-npm run build -w @romzo/client
+npm run check -w romzo   # tsc --noEmit
+npm test -w romzo        # vitest（含共享向量契约测试，无真实网络）
+npm run build -w romzo
 ```
 
 ## 请求、校验与缓存
@@ -111,7 +113,7 @@ HTTP 原语和导出的 `relayRequest(origin, path, body?, options?)` 默认每�
 `joinRoom` 在申请 admission 前执行 `verifyDescriptor`：字段白名单、origin/code、configHash、宿主 Ed25519 签名。`createRoom` 也在确认前验证描述符。通过 `validateOptions` 回调补充应用规则；SDK 不解释桌游 options。签名只证明描述符由所载 host 密钥签署；确认邀请发出者身份仍需可信渠道。
 
 ```ts
-import { createPasswordKeyCache, createRoom } from "@romzo/client";
+import { createPasswordKeyCache, createRoom } from "romzo";
 const passwordKeyProvider = createPasswordKeyCache(creationPassword);
 const room = await createRoom(origin, options, { passwordKeyProvider, validateOptions });
 // 口令变化：clear() 并丢弃旧实例，创建绑定新口令的实例。
@@ -122,7 +124,11 @@ passwordKeyProvider.clear(origin); // 或 clear() 清除全部派生密钥
 
 ## 会话与私钥责任
 
-SDK 默认每 10 秒保活，应用应及时订阅频道；未订阅即 keepalive 会被服务端拒绝。握手拒绝乱序、重复 challenge、origin/票据绑定不一致；认证后出现握手帧、非法 JSON、二进制帧或版本错误将关闭并拒绝 pending 请求。SDK 不自动重连；重连、重新订阅和历史同步由调用方处理。
+SDK 默认每 10 秒保活，应用应及时订阅频道；未订阅即 keepalive 会被服务端拒绝。握手拒绝乱序、重复 challenge、origin/票据绑定不一致；认证后出现握手帧、非法 JSON、二进制帧或版本错误将关闭并拒绝 pending 请求。
+
+自动重连为 opt-in：在 `RelaySession.connect` 上配置 `autoReconnect: { signedDescriptor, maxAttempts?, baseDelayMs?, maxDelayMs? }`（`signedDescriptor` 必填，缺省直接 throw）。开启后，传输断开或终端 error 帧不再直接关闭会话，而是进入重连循环：每次尝试用最新的 `currentRecovery()` 票据加上配置中的签名描述符，经 `restoreSession` 换新 admission 票据，重握手，自动重新订阅本会话订阅过的频道，并 emit `reconnect`（带 `{ attempt }`）。退避从 `baseDelayMs`（默认 1000 ms）指数翻倍至 `maxDelayMs`（默认 15000 ms），带 ±20% 抖动，最多 `maxAttempts` 次（默认 8）；每次排定尝试都会 emit `reconnecting`（带 `{ attempt, delayMs, error }`）供应用观测。只有所有尝试失败后才 emit `close`（手动 `close()` 则立即 emit）。重连期间 `send`/`subscribe` 以 reconnecting 错误立即拒绝、不悬挂；保活定时器暂停，恢复后重启。不开 `autoReconnect` 行为不变：断开或终端 error 帧直接关闭会话并立即 emit `close`，重连、重新订阅和历史同步由调用方处理。
+
+即使开启 `autoReconnect`，信封层历史同步仍由应用负责：SDK 只恢复传输与频道成员关系，不做缺口检测、去重或消息回补（投递为 at-most-once，见 FRAMES.md）。恢复票据请经 `onRecovery`/`currentRecovery()` 持久化，签名描述符与私钥同等保管。
 
 `generateKeyPair()` 和 `importKeyPair()` 的私钥是 **extractable**，用于导出和恢复。私钥导出值、口令及恢复票据不得出现在邀请 URL、遥测、日志或公开测试产物中；由应用选择受保护的持久化方式和清除策略。调用方可以提供兼容的不可导出 CryptoKey，但这类密钥不能使用 `exportPrivateKey` 导出恢复。
 
