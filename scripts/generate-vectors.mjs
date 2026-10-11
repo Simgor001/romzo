@@ -17,9 +17,9 @@ const privateSeed='9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7
 const privateKey=await crypto.subtle.importKey('pkcs8',Buffer.from('302e020100300506032b657004220420'+privateSeed,'hex'),'Ed25519',false,['sign']);
 const generated={value,domain,canonical:canonical(value),digest:await hash(domain,value),password,salt,iterations,
   derived:hex(key),hmac:hex(await crypto.subtle.sign('HMAC',hmac,signingBytes)),
-  createProof:hex(await crypto.subtle.sign('HMAC',hmac,new TextEncoder().encode('ru/relay-create/v1\0'+canonical(value)))),
+  createProof:hex(await crypto.subtle.sign('HMAC',hmac,new TextEncoder().encode('romzo/relay-create/v1\0'+canonical(value)))),
   publicKey:'d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a',
   signature:hex(await crypto.subtle.sign('Ed25519',privateKey,signingBytes)),relayVersion:'1.2.0',genericOptions,
-  genericOptionsHash:await hash('ru/lobby-options/v1',genericOptions)};
+  genericOptionsHash:await hash('romzo/lobby-options/v1',genericOptions)};
 if(process.argv.includes('--check')) {assert.deepEqual(generated, original);console.log('Shared deterministic vectors match.');}
 else writeFileSync(path,JSON.stringify(generated,null,2)+'\n');

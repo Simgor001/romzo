@@ -120,17 +120,17 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 	t := *f.Admission
 	s.mu.Lock()
 	room := s.rooms[t.Ticket.Code]
-	valid := (t.Ticket.Purpose == "guest" || t.Ticket.Purpose == "creator") && s.validTicket(t, t.Ticket.Purpose) && room != nil && room.Confirmed && room.Signed.Descriptor.Instance == t.Ticket.Instance && hash("ru/relay-descriptor/v1", room.Signed) == t.Ticket.Digest
+	valid := (t.Ticket.Purpose == "guest" || t.Ticket.Purpose == "creator") && s.validTicket(t, t.Ticket.Purpose) && room != nil && room.Confirmed && room.Signed.Descriptor.Instance == t.Ticket.Instance && hash("romzo/relay-descriptor/v1", room.Signed) == t.Ticket.Digest
 	s.mu.Unlock()
 	if !valid {
 		return
 	}
-	challenge := map[string]any{"protocol": protocol, "origin": s.cfg.Origin, "ticket": hash("ru/relay-admission/v1", t), "challenge": randomHex(32)}
+	challenge := map[string]any{"protocol": protocol, "origin": s.cfg.Origin, "ticket": hash("romzo/relay-admission/v1", t), "challenge": randomHex(32)}
 	if c.Write(authCtx, websocket.MessageText, wire(map[string]any{"v": protocol, "kind": "challenge", "value": challenge})) != nil {
 		return
 	}
 	f, ok = read(authCtx)
-	if !ok || f.Kind != "proof" || !verifySignature(t.Ticket.Key, f.Signature, "ru/relay-connect/v1", challenge) {
+	if !ok || f.Kind != "proof" || !verifySignature(t.Ticket.Key, f.Signature, "romzo/relay-connect/v1", challenge) {
 		return
 	}
 	p := &Peer{id: randomHex(16), key: t.Ticket.Key, conn: c, queue: make(chan []byte, 128), channels: map[string]bool{}, room: room, cancel: cancel, lastSeen: s.now(), rateAt: s.now(), frameTokens: 128, byteTokens: float64(s.cfg.BytesPerSecond * 2)}

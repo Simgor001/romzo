@@ -1,83 +1,92 @@
-# ru-relay/v1 WebSocket 帧协议
+# romzo/v1 WebSocket frame protocol
 
-本文档是 `apps/relay` WebSocket 面的规范，与 HTTP 面的 OpenAPI 文档（`openapi.yaml`）互补。第三方客户端实现应以本文档 + 共享测试向量（`protocol/relay-v1-vectors.json`）为准，不需要阅读服务端源码。
+中文：[FRAMES_zh.md](FRAMES_zh.md)
 
-服务端发行版本为 **1.2.0**；wire 协议保持 **ru-relay/v1**，HTTP 路径、签名域和冻结的信封字段不变。
+This document is the specification of the `apps/relay` WebSocket surface; it
+complements the OpenAPI document (`openapi.yaml`) for the HTTP surface.
+Third-party client implementations can follow this document and the shared
+test vectors (`protocol/relay-v1-vectors.json`) alone.
 
-## 邀请链接与房间配置
+Server release is **1.2.0**; the public wire protocol is **romzo/v1**.
+HTTP routes use `/api/v1/`, WebSocket uses `/ws`, and cryptographic domains
+use the `romzo/` prefix. Clients and servers must use the same protocol.
 
-标准邀请为 `https://<client-origin>/#<10位Crockford房号>@<relay-host[:port]>`，例如 `https://game.example.com/#ABCD123XYZ@romzo.net`。房号大写、不带分隔符；生产中继隐含 HTTPS。fragment 不进入 HTTP 请求，客户端解析后应通过 `history.replaceState` 清除，并自行保存刷新和历史导航所需的状态。口令、私钥、恢复票据不进入邀请。SDK 的 `buildInviteLink` / `parseInviteHash` 是纯函数，不操作浏览器历史。
+## Invite links and room configuration
 
-只有明确启用的本地开发环境允许 HTTP 回环中继（localhost、127.0.0.1、[::1]）；生产页面不能把省略 scheme 的邀请解释为远程 HTTP。旧邀请兼容、开发地址覆盖及浏览器历史恢复由应用负责；SDK 纯函数只处理标准邀请格式。
+The standard invite is `https://<client-origin>/#<10-char Crockford room code>@<relay-host[:port]>`, e.g. `https://game.example.com/#ABCD123XYZ@romzo.net`. Room codes are uppercase, without separators; production relays imply HTTPS. An omitted port is the service default port **9224**; a relay on 443 must write `:443` explicitly (otherwise it reads back as 9224), and local loopback development should always write its port explicitly.
 
-descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类型；UTF-8 原始 JSON 上限由 `MAX_OPTIONS_BYTES` 指定，默认和最大 4096 字节。现有 canonical 协议只允许安全整数，不能包含小数或超出 JavaScript 安全整数范围的数。服务端核对 configHash，但不解释 players、阵营、计分或 lifecycle；应用必须在申请 admission 前验证自己的规则。
+The fragment never enters the HTTP request; the client parses it, clears it via `history.replaceState`, and keeps the state needed for reloads and history navigation itself. Passwords, private keys and recovery tickets never enter an invite. The SDK functions `buildInviteLink` / `parseInviteHash` are pure and do not touch browser history.
 
-## 连接与传输
+Only explicitly enabled local development may use an HTTP loopback relay (localhost, 127.0.0.1, [::1]); production pages must not interpret a scheme-less invite as remote HTTP. Applications handle legacy invite compatibility, development address overrides and browser-history recovery; the SDK pure functions cover only the standard invite format.
 
-- 端点：`GET /_relic/v1/ws`，WebSocket 文本帧，**不支持二进制帧**。
-- 每个帧都是单个 JSON 对象，带 `"v": "ru-relay/v1"` 版本字段。
-- Origin 必须在中继器允许列表内（浏览器场景）；每 IP 有独立令牌桶限流。
-- 认证必须在连接后 **5 秒**内完成，超时直接断开（无错误帧）。
-- 认证后每 **45 秒**内必须收到任意合法帧，否则断开（发送 `keepalive` 即可续命）。
-- 单帧上限 288 KiB；慢写 5 秒断开。
+The descriptor `options` are opaque canonical JSON, allowing any JSON root type; the UTF-8 raw JSON cap is `MAX_OPTIONS_BYTES`, default and maximum 4096 bytes. The frozen canonical protocol allows only safe integers — no decimals, no numbers outside the JavaScript safe-integer range. The server checks configHash but does not interpret players, factions, scoring or lifecycle; the application must validate its own rules before requesting admission.
 
-## 握手（四帧）
+## Connection and transport
+
+- Endpoint: `GET /ws`, WebSocket text frames, **binary frames not supported**.
+- Every frame is a single JSON object with a `"v": "romzo/v1"` version field.
+- Origin must be in the relay's allowlist (browser scenarios); each IP has an independent token-bucket rate limit.
+- Authentication must complete within **5 seconds** of connect, or the connection is dropped (no error frame).
+- After authentication, any valid frame must arrive within **45 seconds**, or the connection is dropped (a `keepalive` suffices).
+- Per-frame cap 288 KiB; slow writes are dropped after 5 seconds.
+
+## Handshake (four frames)
 
 ```
-客户端 → {"v","kind":"authenticate","admission": <SignedTicket>}
-服务端 → {"v","kind":"challenge","value": {"protocol","origin","ticket": <ticket哈希>,"challenge": <64 hex>}}
-客户端 → {"v","kind":"proof","signature": <Ed25519 签名, 128 hex>}
-服务端 → {"v","kind":"authenticated","id": <16 hex peer id>}
+client → {"v","kind":"authenticate","admission": <SignedTicket>}
+server → {"v","kind":"challenge","value": {"protocol","origin","ticket": <ticket hash>,"challenge": <64 hex>}}
+client → {"v","kind":"proof","signature": <Ed25519 signature, 128 hex>}
+server → {"v","kind":"authenticated","id": <16 hex peer id>}
 ```
 
-- `admission` 票据由 `POST /rooms`（房主）、`/rooms/{code}/confirm`、`/admissions`（访客）或 `/restore` 签发，60 秒有效，单次握手即作废。
-- `proof` 用票据 `key` 对应的 Ed25519 私钥对 challenge 对象签名（域分隔串 `ru/relay-connect/v1`，见向量）。
-- 握手失败一律直接断开，**不返回错误帧**（避免给枚举攻击者反馈）。
+- The `admission` ticket is issued by `POST /rooms` (host), `/rooms/{code}/confirm`, `/admissions` (guest) or `/restore`; it is valid for 60 seconds and void after a single handshake.
+- `proof` signs the challenge object with the Ed25519 private key matching the ticket's `key` (domain-separation string `romzo/relay-connect/v1`, see vectors).
+- Handshake failure always drops the connection with **no error frame** (no feedback for enumeration attackers).
 
-## 认证后客户端帧
+## Client frames after authentication
 
-通用字段：`id` 为必填非空 ≤64 字符的应答关联 ID；`send` 帧可有 `target`（peer id 字符串）。
+Common fields: `id` is a required non-empty response-correlation ID of ≤64 characters; a `send` frame may carry `target` (a peer id string).
 
-| kind | 字段 | 语义 |
+| kind | fields | semantics |
 |---|---|---|
-| `subscribe` | `channel` | 订阅 `discovery` / `lobby` / `game` 之一。订阅成功后收到同频道其他成员的 `join`，自己向他人广播 `join` |
-| `unsubscribe` | `channel` | 退订；向同频道他人广播 `leave` |
-| `send` | `channel`, `value`, `target?` | 转发 `value`（任意 JSON）给同频道成员；`target` 缺省为广播，`target` 必须是已订阅该频道的其他 peer。`value` 在 `game` 频道 ≤ 256 KiB，其余频道 ≤ 16 KiB |
-| `keepalive` | — | 续约房间活性（必须先有订阅）；应答中携带新恢复票据 |
+| `subscribe` | `channel` | Subscribe to one of `discovery` / `lobby` / `game`. On success you receive `join` for existing channel members and broadcast `join` to them |
+| `unsubscribe` | `channel` | Unsubscribe; broadcasts `leave` to other channel members |
+| `send` | `channel`, `value`, `target?` | Forward `value` (any JSON) to channel members; `target` defaults to broadcast and must be another peer subscribed to that channel. `value` is ≤ 256 KiB on `game`, ≤ 16 KiB on other channels |
+| `keepalive` | — | Renew room liveness (requires an active subscription); the response carries a new recovery ticket |
 
-## 服务端帧
+## Server frames
 
-| kind | 语义 |
+| kind | semantics |
 |---|---|
-| `ack` | 对每个 `subscribe`/`unsubscribe`/`send`/`keepalive` 的应答，回显 `id`；`keepalive` 的应答额外带 `recovery`（签名恢复票据） |
-| `error` | 不关闭连接的应用层错误（目前仅 `invalid_target`：`send` 的目标不存在/是自己/未订阅该频道） |
-| `error`（终端） | 协议违规，**此帧后连接必断**，见下表 |
-| `join` / `leave` | 频道成员变化，带 `channel`、`peer`（id）、`key`（该 peer 的 Ed25519 公钥，用于端侧加密） |
-| `receive` | 他人 `send` 的负载，带 `channel`、`peer`、`value`（原样 JSON） |
-| `authenticated` / `challenge` | 握手帧，见上 |
+| `ack` | Response to each `subscribe`/`unsubscribe`/`send`/`keepalive`, echoing `id`; the `keepalive` response also carries `recovery` (a signed recovery ticket) |
+| `error` | Application-level error without closing (currently only `invalid_target`: `send` target is missing/self/not subscribed to the channel) |
+| `error` (terminal) | Protocol violation; **the connection is closed after this frame**, see table below |
+| `join` / `leave` | Channel membership change, with `channel`, `peer` (id), `key` (that peer's Ed25519 public key, for end-to-end encryption) |
+| `receive` | Another peer's `send` payload, with `channel`, `peer`, `value` (verbatim JSON) |
+| `authenticated` / `challenge` | Handshake frames, see above |
 
-## 终端错误帧（断开前必发，除非传输已死）
+## Terminal error frames (always sent before disconnect, unless the transport is already dead)
 
-| error 码 | 触发条件 |
+| error code | trigger |
 |---|---|
-| `invalid_frame_fields` | 缺 `id`、携带 `admission`/`signature`、非 send 帧超 16 KiB 等 |
-| `invalid_target_encoding` | `target` 不是非空字符串 |
-| `invalid_channel` | 订阅未知频道 |
-| `message_bound_or_unsubscribed` | 向未订阅频道发送、负载为空或超大小上限 |
-| `keepalive_without_subscription` | 无订阅时发送 keepalive |
-| `unknown_frame_kind` | 其他未知 kind |
-| `frame_or_byte_rate` | 触发每连接帧率/字节率或每 IP 聚合字节率限制 |
+| `invalid_frame_fields` | missing `id`, carrying `admission`/`signature`, non-send frame over 16 KiB, etc. |
+| `invalid_target_encoding` | `target` is not a non-empty string |
+| `invalid_channel` | subscribing to an unknown channel |
+| `message_bound_or_unsubscribed` | sending to an unsubscribed channel, empty payload or payload over the size cap |
+| `keepalive_without_subscription` | keepalive without a subscription |
+| `unknown_frame_kind` | any other unknown kind |
+| `frame_or_byte_rate` | per-connection frame/byte rate or per-IP aggregate byte rate limit hit |
 
-客户端收到终端错误帧后应使用 `recovery` 票据重连并重同步本地状态，而不是立即无限重试；建议指数退避。
+After a terminal error frame the client should reconnect with the `recovery` ticket and resynchronize local state instead of retrying immediately; exponential backoff is recommended.
 
-## 投递语义（可靠性契约）
+## Delivery semantics (reliability contract)
 
-- **至多一次**：中继不持久化、不重发。TCP + 每 peer FIFO 保证**同一发送者的帧有序、不重复**（在连接存活期内）。
-- 断线恢复由客户端信封层负责：关键信封（计分、投票）应带单调序号与对端应用层应答；发现缺口经恢复票据重连后做历史同步。中继不提供 QoS 1/2。
-- 房间全部内存态；中继重启后可凭未过期恢复票据恢复房间（`POST /rooms/{code}/restore`）。跨实例恢复还要求共享票据密钥和统一 origin；它不能单独证明同房路由、建房分配或故障迁移正确。
+- **At most once**: the relay does not persist and does not resend. TCP plus per-peer FIFO guarantees frames from the **same sender are ordered and not duplicated** (while the connection lives).
+- The client envelope layer owns disconnect recovery: critical envelopes (scoring, votes) should carry a monotone sequence number and a peer application-level acknowledgment; on detecting a gap, reconnect via a recovery ticket and perform history synchronization. The relay does not provide QoS 1/2.
+- Rooms are entirely in memory; after a relay restart a room can be restored with an unexpired recovery ticket (`POST /rooms/{code}/restore`). Multi-instance recovery also requires shared ticket keys and a unified origin; same-room routing, allocation and failover correctness still need separate validation.
 
-## 限流（默认，可经服务端配置调整）
+## Rate limits (defaults, adjustable via server configuration)
 
-每连接：64 帧/秒、1 MiB/秒（令牌桶，突发 2 秒）；写队列 128 帧 / 1 MiB，满则断开该连接；全局队列 64 MiB。
+Per connection: 64 frames/s, 1 MiB/s (token bucket, 2-second burst); write queue 128 frames / 1 MiB, full queue drops that connection; global queue 64 MiB.
 
-每 IP：认证后的入站 WS 原始 JSON 字节默认 1 MiB/秒，突发 2 秒；`IP_BYTES_PER_SECOND` 可调整。多个房间和频道共用该源 IP 的预算，JSON 空白也计入。每连接限制同时生效。IP 识别只信任 `TRUSTED_PROXIES` 明确列出的代理；这不是出站扇出带宽预算。令牌补充使用 Go time 的单调时间分量。
+Per IP: authenticated inbound WS raw JSON bytes default to 1 MiB/s with a 2-second burst; `IP_BYTES_PER_SECOND` adjusts it. Rooms and channels share that source-IP budget, and JSON whitespace counts. Per-connection limits still apply. IP identification trusts only proxies listed in `TRUSTED_PROXIES`; outbound fanout bandwidth lies outside this limit. Token refill uses the monotonic component of Go time.

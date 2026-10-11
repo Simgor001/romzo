@@ -1,7 +1,8 @@
 /** Wire protocol version implemented by this SDK. */
-export const PROTOCOL = "ru-relay/v1";
-export const API = "/_relic/v1/";
-export const DISCOVERY_PATH = "/.well-known/relic-undertow";
+export const PROTOCOL = "romzo/v1";
+export const API = "/api/v1/";
+export const WS_PATH = "/ws";
+export const DISCOVERY_PATH = "/.well-known/romzo";
 
 /** Room channels a peer may subscribe to. */
 export type Channel = "discovery" | "lobby" | "game";
@@ -9,7 +10,7 @@ export type Channel = "discovery" | "lobby" | "game";
 /** Subset of channels, for APIs that only make sense on some of them. */
 export const CHANNELS: readonly Channel[] = ["discovery", "lobby", "game"];
 
-/** POST /_relic/v1/rooms request payload (challenge-bound, idempotent). */
+/** POST /api/v1/rooms request payload (challenge-bound, idempotent). */
 export interface AllocationRequest {
   protocol: string;
   origin: string;
@@ -35,7 +36,7 @@ export interface Descriptor {
   options: unknown;
 }
 
-/** Descriptor plus the host's Ed25519 signature over domain ru/relay-descriptor/v1. */
+/** Descriptor plus the host's Ed25519 signature over domain romzo/relay-descriptor/v1. */
 export interface SignedDescriptor {
   descriptor: Descriptor;
   signature: string;
@@ -60,7 +61,7 @@ export interface SignedTicket {
   signature: string;
 }
 
-/** Discovery document from GET /.well-known/relic-undertow. */
+/** Discovery document from GET /.well-known/romzo. */
 export interface Discovery {
   protocol: string;
   version: string;

@@ -17,9 +17,10 @@ import (
 	"unicode/utf16"
 )
 
-const protocol = "ru-relay/v1"
+const protocol = "romzo/v1"
 const version = "1.2.0"
-const api = "/_relic/v1/"
+const api = "/api/v1/"
+const wsPath = "/ws"
 const controlLimit = 16 * 1024
 const payloadLimit = 256 * 1024
 const frameLimit = 288 * 1024
@@ -203,15 +204,15 @@ type SignedTicket struct {
 }
 
 func (s *Server) ticket(r *Room, key, purpose string, ttl time.Duration) SignedTicket {
-	t := Ticket{protocol, s.cfg.Origin, r.Signed.Descriptor.Code, r.Signed.Descriptor.Instance, hash("ru/relay-descriptor/v1", r.Signed), key, purpose, s.now().Add(ttl).UnixMilli(), randomHex(16)}
-	return SignedTicket{t, mac(s.cfg.TicketKey, "ru/relay-ticket/v1", t)}
+	t := Ticket{protocol, s.cfg.Origin, r.Signed.Descriptor.Code, r.Signed.Descriptor.Instance, hash("romzo/relay-descriptor/v1", r.Signed), key, purpose, s.now().Add(ttl).UnixMilli(), randomHex(16)}
+	return SignedTicket{t, mac(s.cfg.TicketKey, "romzo/relay-ticket/v1", t)}
 }
 func (s *Server) validTicket(t SignedTicket, purpose string) bool {
 	a, e := hex.DecodeString(t.Signature)
 	if e != nil {
 		return false
 	}
-	b, _ := hex.DecodeString(mac(s.cfg.TicketKey, "ru/relay-ticket/v1", t.Ticket))
+	b, _ := hex.DecodeString(mac(s.cfg.TicketKey, "romzo/relay-ticket/v1", t.Ticket))
 	return hmac.Equal(a, b) && t.Ticket.Protocol == protocol && t.Ticket.Origin == s.cfg.Origin && t.Ticket.Purpose == purpose && t.Ticket.Expires > s.now().UnixMilli()
 }
 func validHex(v string, n int) bool {

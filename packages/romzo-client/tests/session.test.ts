@@ -93,7 +93,7 @@ function serve(identity: Identity, admission: SignedTicket, script: (socket: Fak
       const challenge = {
         protocol: PROTOCOL,
         origin: "https://relay.example",
-        ticket: await hash("ru/relay-admission/v1", admission),
+        ticket: await hash("romzo/relay-admission/v1", admission),
         challenge: "f0".repeat(32),
       };
       // Stash for proof verification.
@@ -104,7 +104,7 @@ function serve(identity: Identity, admission: SignedTicket, script: (socket: Fak
       const ok = await verify(
         identity.publicKey,
         challenge,
-        "ru/relay-connect/v1",
+        "romzo/relay-connect/v1",
         frame.signature,
       );
       expect(ok).toBe(true);
@@ -118,7 +118,7 @@ describe("RelaySession (fake socket)", () => {
   it("performs the four-frame handshake and binds the proof to the challenge", async () => {
     const identity = await generateKeyPair();
     const admission = makeAdmission(identity.publicKey);
-    const connecting = RelaySession.connect("wss://relay.example/_relic/v1/ws", admission, identity, {
+    const connecting = RelaySession.connect("wss://relay.example/ws", admission, identity, {
       webSocketFactory: factory,
       keepalive: false,
     });
@@ -344,7 +344,7 @@ describe("handshake state and cleanup", () => {
   it.each(["early authenticated", "duplicate challenge", "wrong origin"])("rejects %s", async (scenario) => {
     const identity = await generateKeyPair();
     const admission = makeAdmission(identity.publicKey);
-    const value = { protocol: PROTOCOL, origin: admission.ticket.origin, ticket: await hash("ru/relay-admission/v1", admission), challenge: "aa".repeat(32) };
+    const value = { protocol: PROTOCOL, origin: admission.ticket.origin, ticket: await hash("romzo/relay-admission/v1", admission), challenge: "aa".repeat(32) };
     const socket = new FakeSocket();
     socket.handler = (frame, s) => {
       if (frame.kind !== "authenticate") return;
@@ -354,7 +354,7 @@ describe("handshake state and cleanup", () => {
         if (scenario === "duplicate challenge") s.deliver({ v: PROTOCOL, kind: "challenge", value });
       }
     };
-    await expect(RelaySession.connect("wss://relay.example/_relic/v1/ws", admission, identity, { webSocketFactory: () => socket })).rejects.toThrow(scenario === "wrong origin" ? "challenge_binding_failed" : "unexpected_frame_during_handshake");
+    await expect(RelaySession.connect("wss://relay.example/ws", admission, identity, { webSocketFactory: () => socket })).rejects.toThrow(scenario === "wrong origin" ? "challenge_binding_failed" : "unexpected_frame_during_handshake");
     expect(socket.closed).toBe(true);
     await new Promise(r => setTimeout(r, 5));
     expect(socket.sent.map(s => JSON.parse(s).kind)).toEqual(["authenticate"]);

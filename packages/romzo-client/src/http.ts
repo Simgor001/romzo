@@ -177,7 +177,7 @@ export function allocate(
 
 /**
  * Confirm an allocated room by countersigning its descriptor with the host
- * key (domain ru/relay-descriptor/v1). Returns the first admission ticket and
+ * key (domain romzo/relay-descriptor/v1). Returns the first admission ticket and
  * the long-lived recovery ticket.
  */
 export function confirmRoom(
@@ -215,7 +215,7 @@ export function fetchDescriptor(
 
 /**
  * Restore a room from a recovery ticket after relay restart / room eviction.
- * `signature` must sign the recovery ticket under domain ru/relay-restore/v1
+ * `signature` must sign the recovery ticket under domain romzo/relay-restore/v1
  * with the transport private key (see crypto.sign).
  */
 export function restoreRoom(

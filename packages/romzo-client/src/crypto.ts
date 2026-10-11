@@ -142,7 +142,7 @@ export function createPasswordKeyCache(password: string): PasswordKeyProvider {
 
 /**
  * Password creation proof: HMAC-SHA256 of (domain + "\0" + canonical(value))
- * under the derived password key. Domain is "ru/relay-create/v1" for room
+ * under the derived password key. Domain is "romzo/relay-create/v1" for room
  * allocation; the helper accepts any domain for forward compatibility.
  */
 export async function passwordProof(

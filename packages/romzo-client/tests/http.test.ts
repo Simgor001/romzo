@@ -66,7 +66,7 @@ describe("HTTP face (fake fetch)", () => {
     const info = await discover(ORIGIN, { fetch });
     expect(info.turnstile).toBe(true);
     expect(info.auth).toBe("password");
-    expect(calls[0].url).toBe(ORIGIN + "/.well-known/relic-undertow");
+    expect(calls[0].url).toBe(ORIGIN + "/.well-known/romzo");
     expect(calls[0].init?.method).toBe("GET");
   });
 
@@ -89,7 +89,7 @@ describe("HTTP face (fake fetch)", () => {
       unhex(DISCOVERY.salt),
       600000,
     );
-    const proof = await passwordProof(key, "ru/relay-create/v1", request);
+    const proof = await passwordProof(key, "romzo/relay-create/v1", request);
     const { fetch, calls } = fakeFetch([
       () =>
         json({
@@ -106,7 +106,7 @@ describe("HTTP face (fake fetch)", () => {
     ]);
     await allocate(ORIGIN, request, proof, "turnstile-token", { fetch });
     const call = calls[0];
-    expect(call.url).toBe(ORIGIN + "/_relic/v1/rooms");
+    expect(call.url).toBe(ORIGIN + "/api/v1/rooms");
     expect(call.init?.method).toBe("POST");
     expect(call.init?.headers).toMatchObject({ "Content-Type": "application/json" });
     const body = JSON.parse(call.init?.body as string);
@@ -114,7 +114,7 @@ describe("HTTP face (fake fetch)", () => {
     expect(body.turnstile).toBe("turnstile-token");
     // Proof is the HMAC of the canonical request under the derived key.
     expect(body.proof).toBe(
-      await passwordProof(key, "ru/relay-create/v1", body.request),
+      await passwordProof(key, "romzo/relay-create/v1", body.request),
     );
     expect(canonical(body.request)).toBe(canonical(request));
   });
@@ -196,11 +196,11 @@ describe("HTTP face (fake fetch)", () => {
     await confirmRoom(ORIGIN, "ABCD2345EF", signed, { fetch });
     await requestAdmission(ORIGIN, "ABCD2345EF", "ff".repeat(32), { fetch });
     await restoreRoom(ORIGIN, "ABCD2345EF", signed, recovery, "sig", { fetch });
-    expect(calls[0].url).toBe(ORIGIN + "/_relic/v1/rooms/ABCD2345EF/confirm");
+    expect(calls[0].url).toBe(ORIGIN + "/api/v1/rooms/ABCD2345EF/confirm");
     expect(JSON.parse(calls[0].init?.body as string)).toEqual(signed);
-    expect(calls[1].url).toBe(ORIGIN + "/_relic/v1/rooms/ABCD2345EF/admissions");
+    expect(calls[1].url).toBe(ORIGIN + "/api/v1/rooms/ABCD2345EF/admissions");
     expect(JSON.parse(calls[1].init?.body as string)).toEqual({ key: "ff".repeat(32) });
-    expect(calls[2].url).toBe(ORIGIN + "/_relic/v1/rooms/ABCD2345EF/restore");
+    expect(calls[2].url).toBe(ORIGIN + "/api/v1/rooms/ABCD2345EF/restore");
     expect(JSON.parse(calls[2].init?.body as string)).toEqual({
       signed,
       recovery,

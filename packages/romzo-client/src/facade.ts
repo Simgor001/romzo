@@ -97,8 +97,8 @@ export async function verifyDescriptor(
   let valid = false;
   try {
     valid = typeof signed.signature === "string" && /^[a-f0-9]{128}$/.test(signed.signature) &&
-      await hash("ru/lobby-options/v1", d.options) === d.configHash &&
-      await verify(d.host, d, "ru/relay-descriptor/v1", signed.signature);
+      await hash("romzo/lobby-options/v1", d.options) === d.configHash &&
+      await verify(d.host, d, "romzo/relay-descriptor/v1", signed.signature);
   } catch { /* Unsupported canonical values are invalid descriptors. */ }
   if (!valid) throw new RelayHttpError("invalid_descriptor_signature", 400);
   await validateOptions?.(d.options);
@@ -149,7 +149,7 @@ export async function createRoom(
     requestId: randomHex(16),
     host: host.publicKey,
     transport: transport.publicKey,
-    configHash: await hash("ru/lobby-options/v1", options),
+    configHash: await hash("romzo/lobby-options/v1", options),
     capability: randomHex(16),
     options,
   };
@@ -158,7 +158,7 @@ export async function createRoom(
     const key = opts.passwordKeyProvider
       ? await opts.passwordKeyProvider.get(origin, discovery.salt, discovery.iterations)
       : await derivePasswordKey(opts.password!, unhex(discovery.salt), discovery.iterations);
-    proof = await passwordProof(key, "ru/relay-create/v1", request);
+    proof = await passwordProof(key, "romzo/relay-create/v1", request);
   }
   let descriptor: Descriptor;
   try { descriptor = await allocate(
@@ -174,7 +174,7 @@ export async function createRoom(
   assertAllocation(descriptor, request);
   const signedDescriptor: SignedDescriptor = {
     descriptor,
-    signature: await sign(host, descriptor, "ru/relay-descriptor/v1"),
+    signature: await sign(host, descriptor, "romzo/relay-descriptor/v1"),
   };
   await verifyDescriptor(signedDescriptor, origin, descriptor.code, opts.validateOptions);
   const { admission, recovery } = await confirmRoom(
@@ -226,7 +226,7 @@ export async function restoreSession(
   opts: RestoreRoomOptions = {},
 ): Promise<RestoredRoom> {
   const { origin, code } = signedDescriptor.descriptor;
-  const signature = await sign(transport, recovery, "ru/relay-restore/v1");
+  const signature = await sign(transport, recovery, "romzo/relay-restore/v1");
   const { admission } = await restoreRoom(
     origin,
     code,

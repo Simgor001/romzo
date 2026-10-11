@@ -48,7 +48,7 @@ components:
                     type: string
                 protocol:
                     enum:
-                        - ru-relay/v1
+                        - romzo/v1
                     type: string
                 requestId:
                     pattern: ^[0-9a-f]{32}$
@@ -102,7 +102,7 @@ components:
                     type: string
                 protocol:
                     enum:
-                        - ru-relay/v1
+                        - romzo/v1
                     type: string
                 transport:
                     pattern: ^[0-9a-f]{64}$
@@ -149,7 +149,7 @@ components:
                     type: string
                 protocol:
                     enum:
-                        - ru-relay/v1
+                        - romzo/v1
                     type: string
                 salt:
                     pattern: ^[0-9a-f]{64}$
@@ -281,7 +281,7 @@ components:
                     type: string
                 protocol:
                     enum:
-                        - ru-relay/v1
+                        - romzo/v1
                     type: string
                 purpose:
                     enum:
@@ -311,12 +311,12 @@ components:
                 - recovery
             type: object
 info:
-    description: Room allocation and encrypted fan-out relay for the ru-relay/v1 protocol. The server forwards client-signed envelopes verbatim; it holds no game rules, keys, or state beyond room lifecycles. All requests reject query strings; browser origins are checked against the server allowlist; every route is per-IP rate limited.
+    description: Room allocation and encrypted fan-out relay for the romzo/v1 protocol. The server forwards client-signed envelopes verbatim; it holds no game rules, keys, or state beyond room lifecycles. All requests reject query strings; browser origins are checked against the server allowlist; every route is per-IP rate limited.
     title: Romzo Relay
     version: 1.2.0
 openapi: 3.0.3
 paths:
-    /.well-known/relic-undertow:
+    /.well-known/romzo:
         get:
             description: 'Public parameters a client needs before allocating a room: PBKDF2 salt for password-derived proofs, whether creation requires a password proof and/or a Cloudflare Turnstile token, and relay rate limits.'
             responses:
@@ -327,7 +327,7 @@ paths:
                                 $ref: '#/components/schemas/Discovery'
                     description: Discovery document.
             summary: Relay discovery document
-    /_relic/v1/metrics:
+    /api/v1/metrics:
         get:
             description: Snapshot of rooms, connections, queue pressure, frame counters, and close reasons. Intended for the deployer; unauthenticated on the relay port.
             responses:
@@ -338,7 +338,7 @@ paths:
                                 $ref: '#/components/schemas/Metrics'
                     description: Metrics snapshot.
             summary: Operational metrics
-    /_relic/v1/room-challenges:
+    /api/v1/room-challenges:
         post:
             description: Every room allocation must reference a fresh challenge, consumed by the allocation attempt (including failed password proofs). Challenges expire after 30 seconds.
             requestBody:
@@ -367,7 +367,7 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Challenge store full.
             summary: Mint a single-use creation challenge
-    /_relic/v1/rooms:
+    /api/v1/rooms:
         post:
             description: Creates an unconfirmed room reservation. Optionally enforces a Cloudflare Turnstile token and/or a password proof, both checked only at this step; the reservation itself must be confirmed by the host via the confirm endpoint before peers can join.
             requestBody:
@@ -420,7 +420,7 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Room capacity reached.
             summary: Allocate a room
-    /_relic/v1/rooms/{code}:
+    /api/v1/rooms/{code}:
         get:
             parameters:
                 - in: path
@@ -443,7 +443,7 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Unknown or unconfirmed room.
             summary: Fetch the confirmed room descriptor
-    /_relic/v1/rooms/{code}/admissions:
+    /api/v1/rooms/{code}/admissions:
         post:
             description: Anyone holding a confirmed room code can mint a 60-second admission ticket for a peer Ed25519 public key; possession of the private key is proven inside the WebSocket handshake.
             parameters:
@@ -485,7 +485,7 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Per-IP token bucket exhausted.
             summary: Mint a guest admission ticket
-    /_relic/v1/rooms/{code}/confirm:
+    /api/v1/rooms/{code}/confirm:
         post:
             description: The host posts the descriptor signed with its Ed25519 host key, proving control of the room identity. Returns a short-lived admission ticket for the WebSocket handshake and a recovery ticket bound to the current lease.
             parameters:
@@ -527,7 +527,7 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Per-IP token bucket exhausted.
             summary: Confirm a reservation and receive tickets
-    /_relic/v1/rooms/{code}/restore:
+    /api/v1/rooms/{code}/restore:
         post:
             description: Reinstates the room instance bound to an unexpired recovery ticket signed by the ticket key holder. Replays cannot extend the original lease.
             parameters:
@@ -575,9 +575,9 @@ paths:
                                 $ref: '#/components/schemas/Error'
                     description: Room capacity reached.
             summary: Restore a room after relay restart
-    /_relic/v1/ws:
+    /ws:
         get:
-            description: Upgrades to a WebSocket carrying ru-relay/v1 text frames. The handshake is authenticate (admission ticket) then proof (Ed25519 signature over the server challenge). Authenticated frames are subscribe, unsubscribe, send, and keepalive on the channels discovery, lobby, and game; the relay only routes envelopes and never inspects payload contents. This document describes the HTTP surface; frame-level semantics live in the protocol vectors.
+            description: Upgrades to a WebSocket carrying romzo/v1 text frames. The handshake is authenticate (admission ticket) then proof (Ed25519 signature over the server challenge). Authenticated frames are subscribe, unsubscribe, send, and keepalive on the channels discovery, lobby, and game; the relay only routes envelopes and never inspects payload contents. This document describes the HTTP surface; frame-level semantics live in the protocol vectors.
             responses:
                 "503":
                     content:
