@@ -51,7 +51,7 @@ await session.subscribe('table');
 
 在本工作区用 `npm run build` 构建 SDK。
 
-邀请格式为 `https://client/#ABCD123XYZ@relay.example.com`：省略端口 = 服务默认端口 9224，因此 443 中继必须显式写 `@relay.example.com:443`。口令、私钥与恢复票据不得进入 URL。
+邀请格式为 `https://client/#ABCD123XYZ@relay.example.com`：省略端口 = 服务默认端口 443，因此其他端口的中继必须显式写出，如 `@relay.example.com:9224`。口令、私钥与恢复票据不得进入 URL。
 
 应用消费并清除 fragment，并负责浏览器历史恢复。SDK 只对回环地址放行 http；生产中继源站必须是 HTTPS。
 

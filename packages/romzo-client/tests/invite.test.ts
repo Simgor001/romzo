@@ -3,15 +3,15 @@ import { buildInviteLink, parseInviteHash } from '../src/invite.js';
 
 test('canonical invitations round-trip without query credentials', () => {
   const url = buildInviteLink('https://romzo.net:9224', 'ABCD123XYZ', 'https://game.example/sub/?old=value#old');
-  expect(url).toBe('https://game.example/sub/#ABCD123XYZ@romzo.net');
+  expect(url).toBe('https://game.example/sub/#ABCD123XYZ@romzo.net:9224');
   expect(parseInviteHash(new URL(url).hash)).toEqual({ origin: 'https://romzo.net:9224', code: 'ABCD123XYZ' });
   expect(parseInviteHash('#ABCD123XYZ@relay.example:9443')).toEqual({ origin: 'https://relay.example:9443', code: 'ABCD123XYZ' });
 });
-test('an omitted port is the service default 9224; a 443 relay must write :443 explicitly', () => {
-  expect(parseInviteHash('#ABCD123XYZ@romzo.net')).toEqual({ origin: 'https://romzo.net:9224', code: 'ABCD123XYZ' });
-  expect(parseInviteHash('#ABCD123XYZ@romzo.net:443')).toEqual({ origin: 'https://romzo.net', code: 'ABCD123XYZ' });
-  expect(buildInviteLink('https://romzo.net', 'ABCD123XYZ', 'https://game.example/')).toBe('https://game.example/#ABCD123XYZ@romzo.net:443');
-  expect(parseInviteHash(new URL(buildInviteLink('https://romzo.net', 'ABCD123XYZ', 'https://game.example/')).hash))
+test('an omitted port is the service default 443; a non-default port must be written explicitly', () => {
+  expect(parseInviteHash('#ABCD123XYZ@romzo.net')).toEqual({ origin: 'https://romzo.net', code: 'ABCD123XYZ' });
+  expect(parseInviteHash('#ABCD123XYZ@romzo.net:9224')).toEqual({ origin: 'https://romzo.net:9224', code: 'ABCD123XYZ' });
+  expect(buildInviteLink('https://romzo.net:443', 'ABCD123XYZ', 'https://game.example/')).toBe('https://game.example/#ABCD123XYZ@romzo.net');
+  expect(parseInviteHash(new URL(buildInviteLink('https://romzo.net:443', 'ABCD123XYZ', 'https://game.example/')).hash))
     .toEqual({ origin: 'https://romzo.net', code: 'ABCD123XYZ' });
 });
 test('loopback HTTP is explicit, and production cannot opt in to remote HTTP', () => {
@@ -19,8 +19,8 @@ test('loopback HTTP is explicit, and production cannot opt in to remote HTTP', (
   const url = buildInviteLink('http://127.0.0.1:8080', 'ABCD123XYZ', 'http://localhost:5190', options);
   expect(parseInviteHash(new URL(url).hash, options)?.origin).toBe('http://127.0.0.1:8080');
   expect(parseInviteHash(new URL(url).hash)?.origin).toBe('https://127.0.0.1:8080');
-  expect(parseInviteHash('#ABCD123XYZ@localhost', options)?.origin).toBe('http://localhost:9224');
-  expect(parseInviteHash('#ABCD123XYZ@localhost')?.origin).toBe('https://localhost:9224');
+  expect(parseInviteHash('#ABCD123XYZ@localhost', options)?.origin).toBe('http://localhost:443');
+  expect(parseInviteHash('#ABCD123XYZ@localhost')?.origin).toBe('https://localhost');
   expect(() => buildInviteLink('http://romzo.net', 'ABCD123XYZ', 'http://localhost', options)).toThrow();
   expect(() => buildInviteLink('http://localhost', 'ABCD123XYZ', 'https://game.example', options)).toThrow();
   for (const origin of ['http://localhost:443', 'http://[::1]:8080']) {

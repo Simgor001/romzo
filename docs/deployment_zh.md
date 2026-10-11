@@ -57,7 +57,7 @@ docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up --build -
 - 仅为实际可信的代理源 CIDR 配置 `TRUSTED_PROXIES`。CORS 与 WS 源站必须与 `CLIENT_ORIGINS` 精确匹配，它们不建立身份。
 - 服务端不托管客户端或重定向。单独的静态客户端同源配置示例见 `deploy/nginx-same-origin.conf`。
 
-端口约定：中继默认监听 9224；TLS 可由 9224 前的反向代理终结，也可由中继监听端直接终结。注意 Cloudflare 橙云代理不支持 5 位端口：使用 5 位端口时请用 DNS-only 记录 + 自有证书；Turnstile 不受影响。
+端口约定：中继默认监听回环 9224；邀请链接的服务默认端口为 443——TLS 由中继前的反向代理在 443 终结（nginx 将 `/ws`、`/api/v1/` 与 `/.well-known/romzo` 转发给中继），或由中继直接监听 443 并终结 TLS。其他端口的中继必须在邀请中显式写出。注意 Cloudflare 橙云代理不支持 5 位端口：使用 5 位端口时请用 DNS-only 记录 + 自有证书；Turnstile 不受影响。
 
 ## 限制
 
