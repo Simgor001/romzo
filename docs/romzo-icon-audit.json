@@ -1,0 +1,52 @@
+{
+  "reviewed_on": "2026-10-12",
+  "source": "website/romzo-icon.svg",
+  "source_sha256": "d3f8449d80e734d95bc1f09dd57b9bf281d13bb801f4eecab9b61c886ad9a64f",
+  "png": "website/romzo-icon.png",
+  "png_sha256": "31c543b4e0f5d557730595edff82877588eac071622d276529ce6d6ab81d3588",
+  "construction": "Original open-room coordinates restored at the user request. Same two walls, doorway and floor geometry as the previous room concept; only its colors changed.",
+  "external_brand_assets_used": [],
+  "palette_source": "User selected the original palette for formal website use. Background and doorway #faf9f6; left wall #222522; right wall #414741; floor and website accent #bd421c.",
+  "review_image": "docs/romzo-icon-review.png",
+  "review_columns_px": [
+    160,
+    64,
+    32,
+    24,
+    16
+  ],
+  "review_rows": [
+    "light background",
+    "dark background",
+    "grayscale"
+  ],
+  "public_visual_comparisons": [
+    {
+      "brand": "SiYuan",
+      "source": "https://b3log.org/siyuan",
+      "observed": "Previous official-page inspection found red and gray folded ribbon planes. User previously noted an association, then explicitly chose to restore the original charcoal/brick palette and adopt this room logo. No exclusivity or clearance claim."
+    },
+    {
+      "brand": "Unity",
+      "source": "https://unity.com/legal/branding-trademarks",
+      "observed": "Three rotational arrows forming a cube; current room has two walls, a single doorway and a floor plane."
+    },
+    {
+      "brand": "PlayCanvas",
+      "source": "https://playcanvas.com/",
+      "observed": "White stacked zigzag on an orange square; different principal silhouette."
+    },
+    {
+      "brand": "Liveblocks",
+      "source": "https://liveblocks.io/images/logo-liveblocks-organization-schema.png",
+      "observed": "Two opposed angular forms split diagonally; different principal silhouette."
+    }
+  ],
+  "scope": "Independent construction and a limited comparison with these four official marks. The geometry uses a common isometric room convention. No worldwide uniqueness or trademark clearance claim.",
+  "visual_review": {
+    "read_back": true,
+    "image_sha256": "4a3f3fd899f976a365eda9cd8cd504849037fd9552b4ba97415fa0063395443d",
+    "result": "Restored original room render read back at 160/64/32/24/16px on light and dark backgrounds and in grayscale. Floor and doorway remain distinguishable; doorway becomes a small notch at 16px. Website navigation, footer and favicon all reference this SVG."
+  },
+  "design_revision": "open-room-original-adopted"
+}

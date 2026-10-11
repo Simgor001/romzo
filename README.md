@@ -7,7 +7,7 @@ The relay handles room registration, signed tickets, channel membership and
 bounded forwarding. Applications own encryption, game rules, persistence,
 reconnection and history synchronization.
 
-Server release: **1.3.0**. SDK: **@romzo/client 0.2.0**. Wire protocol:
+Server release: **1.3.0**. SDK: **romzo 0.2.0**. Wire protocol:
 **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
@@ -31,10 +31,12 @@ npm run verify
 
 In a browser client, after obtaining a creation password from the user:
 
-```ts
-import { createRoom, buildInviteLink, RelaySession } from '@romzo/client';
+The relay origin may be written with or without the scheme: bare hosts default to https, loopback hosts to http.
 
-const room = await createRoom('https://relay.example.com', {
+```ts
+import { createRoom, buildInviteLink, RelaySession } from 'romzo';
+
+const room = await createRoom('relay.example.com', {
   game: 'example', players: 2, rules: ['draft'],
   channels: [
     { name: 'table', maxFrameBytes: 262144 },
@@ -66,7 +68,7 @@ relay origins require HTTPS.
 | Options payload | at most 4096 UTF-8 bytes (configurable lower) | Opaque canonical JSON. Applications validate their own rules before obtaining admission. |
 | Channels | declared in options, up to 8 | `{"name": "table", "maxFrameBytes": 262144}` entries; undeclared rooms keep the compatibility defaults `discovery`/`lobby`/`game` (16 KiB/16 KiB/256 KiB send limits). |
 | Frame delivery | at most once | Send acknowledgments do not confirm that recipients applied an operation. |
-| Reconnection | — | The SDK does not automatically reconnect. |
+| Reconnection | opt-in (`autoReconnect`) | Off by default; when enabled the SDK re-handshakes and re-subscribes, while the application still owns envelope-layer history sync (see the SDK README). |
 
 ## Development
 
@@ -93,6 +95,7 @@ acceptance need separate tests.
 | HTTP OpenAPI | [apps/relay/openapi.yaml](apps/relay/openapi.yaml) | Single source of truth for the HTTP surface. |
 | WebSocket protocol (FRAMES) | [apps/relay/FRAMES.md](apps/relay/FRAMES.md) | |
 | Architecture guide | [docs/architecture.md](docs/architecture.md) | Application responsibilities and recovery boundaries. |
+| Examples | [examples/](examples/) | Minimal browser (`examples/browser/`) and Node.js (`examples/node/`) chat clients against a live relay. |
 | Security guidance | [SECURITY.md](SECURITY.md) | |
 
 ## License
