@@ -53,24 +53,24 @@ await session.subscribe('table');
 
 邀请格式为 `https://client/#ABCD123XYZ@relay.example.com`：省略端口 = 服务默认端口 9224，因此 443 中继必须显式写 `@relay.example.com:443`。口令、私钥与恢复票据不得进入 URL。
 
-应用消费并清除 fragment，并负责浏览器历史恢复。HTTP 回环测试需要 SDK 显式例外；生产中继源站必须 HTTPS。
+应用消费并清除 fragment，并负责浏览器历史恢复。SDK 只对回环地址放行 http；生产中继源站必须是 HTTPS。
 
 ## 限制
 
 | 限制 | 默认值 | 说明 |
 | --- | --- | --- |
 | options 大小 | 至多 4096 UTF-8 字节（可配置为更低） | 不透明 canonical JSON。应用须在申请 admission 前自行校验规则。 |
-| 频道 | 在 options 中声明，至多 8 个 | 形如 `{"name": "table", "maxFrameBytes": 262144}`；未声明时使用兼容默认 `discovery`/`lobby`/`game`（send 上限 16 KiB/16 KiB/256 KiB）。 |
+| 频道 | 在 options 中声明，至多 8 个 | 形如 `{"name": "table", "maxFrameBytes": 262144}`；未声明时没有频道，中继不提供默认值。 |
 | 帧投递 | 至多一次 | 发送应答（ack）不代表接收方已应用操作。 |
 | 重连 | opt-in（`autoReconnect`） | 默认关闭；开启后 SDK 自动重握手并重新订阅频道，信封层历史同步仍由应用负责（见 SDK 文档）。 |
 
 ## 开发
 
-verify 检查公共文件边界与可达 Git 历史、SDK 单元测试与类型、Go 测试与竞态测试、共享协议向量、作为 HTTP 面唯一信源且由契约测试校验端点覆盖的 `openapi.yaml`、SDK 构建，以及一次真实本地中继集成。
+verify 依次检查：公共文件边界与可达 Git 历史、SDK 单元测试与类型、Go 测试与竞态测试、共享协议向量、`openapi.yaml`（HTTP 面的唯一信源，契约测试校验端点覆盖）、SDK 构建，以及一次真实本地中继集成。
 
 `npm run build:relay` 额外构建 Linux amd64/arm64 与 Windows amd64 二进制、校验和及依赖许可声明，输出到 dist/relay。
 
-本地集成启动真实 Go 进程，创建并加入通用房间，认证两个 SDK 会话，转发消息，续期票据，重启中继并恢复房间。该集成仅覆盖本地 HTTP/WS；公网 WSS、浏览器实战、物理设备与多实例验收需另行测试。
+本地集成启动真实 Go 进程，创建并加入通用房间，认证两个 SDK 会话，转发消息，续期票据，重启中继并恢复房间。该集成仅覆盖本地 HTTP/WS；公网 WSS、浏览器环境、真实网络与多实例验收需另行测试。
 
 ## 文档
 

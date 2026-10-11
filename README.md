@@ -60,15 +60,15 @@ service default port 9224, so a relay on 443 must write `@relay.example.com:443`
 explicitly. Passwords, private keys and recovery tickets never belong in URLs.
 
 The application consumes and clears the fragment and owns browser-history
-recovery. HTTP loopback tests require an explicit SDK exception; production
-relay origins require HTTPS.
+recovery. The SDK allows http origins on loopback only; production relay
+origins must be HTTPS.
 
 ## Limits
 
 | Limit | Default | Notes |
 | --- | --- | --- |
 | Options payload | at most 4096 UTF-8 bytes (configurable lower) | Opaque canonical JSON. Applications validate their own rules before obtaining admission. |
-| Channels | declared in options, up to 8 | `{"name": "table", "maxFrameBytes": 262144}` entries; undeclared rooms keep the compatibility defaults `discovery`/`lobby`/`game` (16 KiB/16 KiB/256 KiB send limits). |
+| Channels | declared in options, up to 8 | `{"name": "table", "maxFrameBytes": 262144}` entries; undeclared rooms have no channels; the relay supplies no defaults. |
 | Frame delivery | at most once | Send acknowledgments do not confirm that recipients applied an operation. |
 | Reconnection | opt-in (`autoReconnect`) | Off by default; when enabled the SDK re-handshakes and re-subscribes, while the application still owns envelope-layer history sync (see the SDK README). |
 
@@ -84,9 +84,9 @@ binaries, checksums and dependency license notices under dist/relay.
 
 The local integration starts a real Go process, creates and joins a generic
 room, authenticates two SDK sessions, forwards messages, renews tickets,
-restarts the relay and restores the room. This is **local HTTP/WS evidence**
-only; public WSS, browser gameplay, physical devices and multi-instance
-acceptance need separate tests.
+restarts the relay and restores the room. It covers local HTTP/WS only;
+public WSS, browser clients, real networks and multi-instance setups need
+their own tests.
 
 ## Documentation
 
