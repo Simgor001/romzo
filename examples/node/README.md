@@ -15,12 +15,11 @@ npm run build      # builds packages/romzo-client (the SDK) once
 
 ## Start a local relay
 
-The demo needs a running relay. Build and start one from `apps/relay`:
+The demo needs a running relay. Build and start one from `relay`:
 
 ```sh
-cd apps/relay
-go build -trimpath -o relay .
-./relay --env-file .env        # see .env.example; keep .env private
+cd relay
+go run . --env-file ../deploy/.env  # copy deploy/.env.example and fill private values
 ```
 
 For a quick local run you can skip room-creation auth with `CREATE_AUTH=off`

@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "npm run build -w romzo",
-    "build:relay": "node apps/relay/scripts/build.mjs",
+    "build:relay": "node scripts/build-relay.mjs",
     "check:public": "node scripts/check-public.mjs",
     "test": "npm test -w romzo && npm run test:relay",
     "test:relay": "node scripts/relay.mjs test",

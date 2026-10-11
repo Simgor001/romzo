@@ -19,5 +19,5 @@ COPY --from=build /relay /relay
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /licenses /licenses
 USER 65532:65532
-EXPOSE 8080
+EXPOSE 9224
 ENTRYPOINT ["/relay"]

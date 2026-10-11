@@ -1,6 +1,8 @@
 services:
   relay:
-    build: .
+    build:
+      context: ../relay
+      dockerfile: ../deploy/Dockerfile
     env_file: .env
     environment:
       LISTEN: :9224

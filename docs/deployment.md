@@ -1,20 +1,20 @@
 # Romzo relay
 
-中文：[README_zh.md](README_zh.md)
+中文：[deployment_zh.md](deployment_zh.md)
 
 Standalone Go service; no game engine, static client, database or WebRTC.
 
 ## Run
 
 ```sh
-go build -trimpath -o relay .
-relay init > .env.secrets
+cd relay
+go run . init > ../deploy/.env.secrets
 ```
 
 1. Keep .env.secrets private.
-2. Copy `.env.example` to `.env` and fill its empty secret values locally.
+2. Copy `deploy/.env.example` to `deploy/.env` and fill its empty secret values locally.
 3. Set `PUBLIC_ORIGIN` and `CLIENT_ORIGINS`.
-4. Run `relay --env-file .env`. The environment file is ignored by Git.
+4. From `relay/`, run `go run . --env-file ../deploy/.env`. The environment file is ignored by Git.
 
 The server serves HTTP/WS behind a TLS reverse proxy; PUBLIC_ORIGIN must be a
 canonical HTTPS origin, except for explicit loopback development. Do not expose
@@ -35,10 +35,10 @@ and perform application-layer resynchronization after a restart.
 
 ## Docker
 
-From this directory:
+From the repository root:
 
 ```sh
-docker compose up --build -d
+docker compose -f deploy/compose.yaml up --build -d
 ```
 
 - The image runs as an unprivileged user, with a read-only filesystem, dropped capabilities and a loopback host-port mapping.
@@ -90,7 +90,7 @@ Options:
 
 For a capped demo, consider `MAX_ROOMS=32`, `MAX_CONNECTIONS=128` and both
 byte rates at 262144. Queue/frame/payload limits and terminal errors are
-specified in FRAMES.md.
+specified in [FRAMES.md](../protocol/FRAMES.md).
 
 Outbound fanout bandwidth lies outside these limits.
 
@@ -100,7 +100,7 @@ ticket.
 
 ## Verify
 
-From the repository root: `npm ci && npm run verify`. Within this directory:
+From the repository root: `npm ci && npm run verify`. Within `relay/`:
 `go test ./...` and `go test -race ./...`. `openapi.yaml` is the single source
 of truth for the HTTP surface; a contract test checks that it covers every
 endpoint. Shared fixtures under `protocol/` contain public deterministic test

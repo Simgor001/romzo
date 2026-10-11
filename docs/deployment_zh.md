@@ -1,20 +1,20 @@
 # Romzo 中继
 
-English: [README.md](README.md)
+English: [deployment.md](deployment.md)
 
 独立的 Go 服务；无游戏引擎、静态客户端、数据库或 WebRTC。
 
 ## 运行
 
 ```sh
-go build -trimpath -o relay .
-relay init > .env.secrets
+cd relay
+go run . init > ../deploy/.env.secrets
 ```
 
 1. 妥善保管 .env.secrets。
-2. 把 `.env.example` 复制为 `.env`，在本地填入其中的空密钥值。
+2. 把 `deploy/.env.example` 复制为 `deploy/.env`，在本地填入其中的空密钥值。
 3. 设置 `PUBLIC_ORIGIN` 与 `CLIENT_ORIGINS`。
-4. 运行 `relay --env-file .env`。环境文件已被 Git 忽略。
+4. 在 `relay/` 中运行 `go run . --env-file ../deploy/.env`。环境文件已被 Git 忽略。
 
 服务端以 HTTP/WS 形式运行在 TLS 反向代理之后；除显式回环开发外，PUBLIC_ORIGIN 必须是规范的 HTTPS 源站。不要把未加密监听口暴露到公网。`relay -version` 报告 1.3.0。
 
@@ -32,10 +32,10 @@ relay init > .env.secrets
 
 ## Docker
 
-在本目录执行：
+在仓库根目录执行：
 
 ```sh
-docker compose up --build -d
+docker compose -f deploy/compose.yaml up --build -d
 ```
 
 - 镜像以非特权用户运行，文件系统只读，capabilities 已收缩，主机端口映射到回环。
@@ -81,7 +81,7 @@ options：
 | --- | --- | --- |
 | `MAX_OPTIONS_BYTES` | 4096 UTF-8 原始字节 | 默认与最大。options 接受任何 canonical JSON 根类型，仅安全整数。服务端核对 configHash 与宿主签名；应用客户端校验游戏规则。 |
 
-受限演示可考虑 `MAX_ROOMS=32`、`MAX_CONNECTIONS=128`，两个字节率均为 262144。队列/帧/负载限制与终端错误见 FRAMES_zh.md。
+受限演示可考虑 `MAX_ROOMS=32`、`MAX_CONNECTIONS=128`，两个字节率均为 262144。队列/帧/负载限制与终端错误见 [FRAMES_zh.md](../protocol/FRAMES_zh.md)。
 
 出站扇出带宽不受此限。
 
@@ -89,7 +89,7 @@ options：
 
 ## 验证
 
-在仓库根目录：`npm ci && npm run verify`。在本目录内：`go test ./...` 与 `go test -race ./...`。`openapi.yaml` 是 HTTP 面的唯一信源；契约测试校验其端点覆盖。`protocol/` 下的共享夹具均为公开的确定性测试值，不得用作生产密钥。
+在仓库根目录：`npm ci && npm run verify`。在 `relay/` 内：`go test ./...` 与 `go test -race ./...`。`openapi.yaml` 是 HTTP 面的唯一信源；契约测试校验其端点覆盖。`protocol/` 下的共享夹具均为公开的确定性测试值，不得用作生产密钥。
 
 ## 只读监控
 
