@@ -1,14 +1,24 @@
 # Romzo
 
+中文：[README_zh.md](README_zh.md)
+
 A room-based opaque WebSocket relay and zero-runtime-dependency TypeScript SDK.
 The relay handles room registration, signed tickets, channel membership and
 bounded forwarding. Applications own encryption, game rules, persistence,
 reconnection and history synchronization.
 
-Server release: **1.2.0**. SDK: **@romzo/client 0.1.0**. Wire protocol:
-**ru-relay/v1** (including the existing /_relic/v1 paths and signing domains).
+Server release: **1.2.0**. SDK: **@romzo/client 0.2.0**. Wire protocol:
+**romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
-## Develop
+## Components
+
+| Component | Path | Description |
+| --- | --- | --- |
+| Relay server | `apps/relay` | Room registration, signed tickets, channel membership and bounded forwarding. |
+| TypeScript SDK | `packages/romzo-client` | Zero-runtime-dependency client SDK. |
+| Shared protocol vectors | `protocol/` | Public deterministic test values. |
+
+## Quick start
 
 Requires Node.js 24 and Go 1.26.1. From a clean checkout:
 
@@ -16,12 +26,6 @@ Requires Node.js 24 and Go 1.26.1. From a clean checkout:
 npm ci
 npm run verify
 ```
-
-Verification checks the public file boundary and reachable Git history, SDK
-unit tests and types, Go tests and race tests, shared protocol vectors,
-generated OpenAPI consistency, SDK builds and a real local relay integration.
-`npm run build:relay` additionally builds Linux amd64/arm64 and Windows amd64
-binaries, checksums and dependency license notices under apps/relay/dist.
 
 ## Use
 
@@ -36,33 +40,55 @@ const room = await createRoom('https://relay.example.com', {
 const invite = buildInviteLink(room.descriptor.origin, room.descriptor.code,
   'https://client.example.com/');
 const session = await RelaySession.connect(
-  room.descriptor.origin.replace(/^http/, 'ws') + '/_relic/v1/ws',
+  room.descriptor.origin.replace(/^http/, 'ws') + '/ws',
   room.admission, room.transport);
 await session.subscribe('game');
 ```
 
-Build the SDK from this workspace with `npm run build`. See the
-[SDK documentation](packages/romzo-client/README.md),
-[deployment guide](apps/relay/README.md), [HTTP OpenAPI](apps/relay/openapi.yaml)
-and [WebSocket protocol](apps/relay/FRAMES.md). The [architecture guide](docs/architecture.md)
-describes application responsibilities and recovery boundaries.
+Build the SDK from this workspace with `npm run build`.
 
-Invites use `https://client/#ABCD123XYZ@relay.example.com`. Passwords, private
-keys and recovery tickets never belong in URLs. The application consumes and
-clears the fragment and owns browser-history recovery. HTTP loopback tests
-require an explicit SDK exception; production relay origins require HTTPS.
+Invites use `https://client/#ABCD123XYZ@relay.example.com`: an omitted port is the
+service default port 9224, so a relay on 443 must write `@relay.example.com:443`
+explicitly. Passwords, private keys and recovery tickets never belong in URLs.
 
-## Boundaries
+The application consumes and clears the fragment and owns browser-history
+recovery. HTTP loopback tests require an explicit SDK exception; production
+relay origins require HTTPS.
 
-Options are opaque canonical JSON, at most 4096 UTF-8 bytes (configurable
-lower). Applications validate their own rules before obtaining admission.
-Frames are delivered at most once; send acknowledgments do not confirm that
-recipients applied an operation. The SDK does not automatically reconnect.
+## Limits
+
+| Limit | Default | Notes |
+| --- | --- | --- |
+| Options payload | at most 4096 UTF-8 bytes (configurable lower) | Opaque canonical JSON. Applications validate their own rules before obtaining admission. |
+| Frame delivery | at most once | Send acknowledgments do not confirm that recipients applied an operation. |
+| Reconnection | — | The SDK does not automatically reconnect. |
+
+## Development
+
+Verification checks the public file boundary and reachable Git history, SDK
+unit tests and types, Go tests and race tests, shared protocol vectors,
+`openapi.yaml` as the single source of truth for the HTTP surface with a contract
+test covering every endpoint, SDK builds and a real local relay integration.
+
+`npm run build:relay` also builds Linux amd64/arm64 and Windows amd64
+binaries, checksums and dependency license notices under apps/relay/dist.
 
 The local integration starts a real Go process, creates and joins a generic
 room, authenticates two SDK sessions, forwards messages, renews tickets,
-restarts the relay and restores the room. This is **local HTTP/WS evidence**,
-not public WSS, browser gameplay, physical-device or multi-instance acceptance.
+restarts the relay and restores the room. This is **local HTTP/WS evidence**
+only; public WSS, browser gameplay, physical devices and multi-instance
+acceptance need separate tests.
+
+## Documentation
+
+| Document | Path | Notes |
+| --- | --- | --- |
+| SDK documentation | [packages/romzo-client/README.md](packages/romzo-client/README.md) | |
+| Relay deployment guide | [apps/relay/README.md](apps/relay/README.md) | |
+| HTTP OpenAPI | [apps/relay/openapi.yaml](apps/relay/openapi.yaml) | Single source of truth for the HTTP surface. |
+| WebSocket protocol (FRAMES) | [apps/relay/FRAMES.md](apps/relay/FRAMES.md) | |
+| Architecture guide | [docs/architecture.md](docs/architecture.md) | Application responsibilities and recovery boundaries. |
+| Security guidance | [SECURITY.md](SECURITY.md) | |
 
 ## License
 
