@@ -4,7 +4,7 @@ English: [README.md](README.md)
 
 基于房间（room）的不透明 WebSocket 中继，附带零运行时依赖的 TypeScript SDK。中继负责房间注册、签名票据（ticket）、频道（channel）成员管理与有界转发；加密、游戏规则、持久化、重连与历史同步由应用负责。
 
-服务端版本：**1.3.0**。SDK：**@romzo/client 0.2.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
+服务端版本：**1.3.0**。SDK：**romzo 0.2.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
 
 ## 组件
 
@@ -27,10 +27,12 @@ npm run verify
 
 浏览器客户端中，从用户取得建房口令后：
 
-```ts
-import { createRoom, buildInviteLink, RelaySession } from '@romzo/client';
+中继地址可以不带协议写：裸域名默认走 https，回环地址默认走 http。
 
-const room = await createRoom('https://relay.example.com', {
+```ts
+import { createRoom, buildInviteLink, RelaySession } from 'romzo';
+
+const room = await createRoom('relay.example.com', {
   game: 'example', players: 2, rules: ['draft'],
   channels: [
     { name: 'table', maxFrameBytes: 262144 },
@@ -58,7 +60,7 @@ await session.subscribe('table');
 | options 大小 | 至多 4096 UTF-8 字节（可配置为更低） | 不透明 canonical JSON。应用须在申请 admission 前自行校验规则。 |
 | 频道 | 在 options 中声明，至多 8 个 | 形如 `{"name": "table", "maxFrameBytes": 262144}`；未声明时使用兼容默认 `discovery`/`lobby`/`game`（send 上限 16 KiB/16 KiB/256 KiB）。 |
 | 帧投递 | 至多一次 | 发送应答（ack）不代表接收方已应用操作。 |
-| 重连 | — | SDK 不自动重连。 |
+| 重连 | opt-in（`autoReconnect`） | 默认关闭；开启后 SDK 自动重握手并重新订阅频道，信封层历史同步仍由应用负责（见 SDK 文档）。 |
 
 ## 开发
 
@@ -77,6 +79,7 @@ verify 检查公共文件边界与可达 Git 历史、SDK 单元测试与类型�
 | HTTP OpenAPI | [apps/relay/openapi.yaml](apps/relay/openapi.yaml) | HTTP 面的唯一信源。 |
 | WebSocket 协议 | [apps/relay/FRAMES_zh.md](apps/relay/FRAMES_zh.md) | |
 | 架构指南 | [docs/architecture_zh.md](docs/architecture_zh.md) | 应用职责与恢复边界。 |
+| 示例 | [examples/](examples/) | 直连真实中继的最小浏览器（`examples/browser/`）与 Node.js（`examples/node/`）聊天客户端。 |
 | 安全说明 | [SECURITY_zh.md](SECURITY_zh.md) | |
 
 ## 许可

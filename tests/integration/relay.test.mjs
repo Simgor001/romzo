@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import WebSocket from 'ws';
-import { createRoom, joinRoom, restoreSession, RelaySession, buildInviteLink, parseInviteHash } from '@romzo/client';
+import { createRoom, joinRoom, restoreSession, RelaySession, buildInviteLink, parseInviteHash } from 'romzo';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function freePort() {
@@ -34,7 +34,9 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
   const password = randomBytes(24).toString('hex');
   const env = {PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, LISTEN: new URL(origin).host, PUBLIC_ORIGIN: origin,
     CREATE_AUTH: 'password', CREATE_PASSWORD: password, AUTH_SALT: randomBytes(32).toString('hex'),
-    TICKET_KEY: randomBytes(32).toString('hex'), CLIENT_ORIGINS: clientOrigin};
+    TICKET_KEY: randomBytes(32).toString('hex'), CLIENT_ORIGINS: clientOrigin,
+    METRICS_KEY: randomBytes(32).toString('hex'), METRICS_HISTORY_FILE: join(output, 'history.json'),
+    RECORD_CREATOR_IP: 'true', MAX_ROOM_TRAFFIC_BYTES: '1073741824', MAX_ROOM_AGE_SECONDS: '21600'};
   let child; const sessions = [];
   async function start() {
     child = spawn(binary, [], {env, stdio: 'ignore', windowsHide: true});
@@ -67,8 +69,24 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     const backward = receive(hostSession); await guestSession.send('game', {operation: 'ack', sequence: 1});
     assert.deepEqual((await backward).value, {operation: 'ack', sequence: 1});
     await hostSession.keepalive(); const recovery = hostSession.currentRecovery(); assert.ok(recovery);
+    const metrics = async () => {
+      const response = await fetch(origin+'/api/v1/metrics', {headers: {Authorization: 'Bearer '+env.METRICS_KEY}});
+      assert.equal(response.status, 200); return response.json();
+    };
+    const beforeRestart = await metrics();
+    assert.equal(beforeRestart.roomHistory.trafficTop.length, 1);
+    assert.equal(beforeRestart.roomHistory.onlineTop[0].connections, 2);
+    assert.ok(beforeRestart.roomHistory.trafficTop[0].sentBytes > 0);
+    assert.ok(JSON.stringify(beforeRestart).includes(room.descriptor.code));
+    for(let attempt=0;attempt<240 && !existsSync(env.METRICS_HISTORY_FILE);attempt++) await pause(50);
+    assert.ok(existsSync(env.METRICS_HISTORY_FILE), 'periodic history checkpoint missing');
+    const saved = JSON.parse(readFileSync(env.METRICS_HISTORY_FILE, 'utf8'));
+    assert.equal(saved[0].id,beforeRestart.roomHistory.trafficTop[0].id);
     for (const session of sessions) session.close(); sessions.length = 0;
     await stop(child); await start();
+    const afterReload = await metrics();
+    assert.equal(afterReload.roomHistory.trafficTop[0].id,beforeRestart.roomHistory.trafficTop[0].id);
+    assert.ok(afterReload.roomHistory.trafficTop[0].sentBytes>0);
     const restored = await restoreSession(room.signedDescriptor, recovery, room.transport);
     const restoredHost = await RelaySession.connect(wsUrl, restored.admission, restored.transport, socketOptions); sessions.push(restoredHost);
     const rejoined = await joinRoom(origin, room.descriptor.code);
@@ -77,6 +95,16 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     const afterRestart = receive(restoredGuest); await restoredHost.send('game', {operation: 'resync', sequence: 2});
     assert.deepEqual((await afterRestart).value, {operation: 'resync', sequence: 2});
     assert.equal(restored.signedDescriptor.descriptor.instance, room.descriptor.instance);
+    const record=(await metrics()).roomHistory.trafficTop[0];
+    assert.equal(record.code,room.descriptor.code);
+    assert.equal(record.creatorIP,'127.0.0.1');
+    const shutdown=await fetch(origin+'/api/v1/admin/rooms/stop',{method:'POST',headers:{Authorization:'Bearer '+env.METRICS_KEY,'Content-Type':'application/json'},body:JSON.stringify({id:record.id})});
+    assert.equal(shutdown.status,200);
+    for(let attempt=0;attempt<50 && (await metrics()).connections;attempt++)await pause(50);
+    assert.equal((await metrics()).connections,0);
+    await stop(child);await start();
+    assert.equal((await metrics()).roomHistory.trafficTop[0].stopReason,'admin_stopped');
+    await assert.rejects(restoreSession(room.signedDescriptor,recovery,room.transport));
   } finally {
     try {
       for (const session of sessions) session.close(); await stop(child);

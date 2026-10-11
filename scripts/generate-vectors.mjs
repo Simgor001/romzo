@@ -2,7 +2,7 @@
 import { webcrypto as crypto } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { canonical, hash, hex } from '@romzo/client/canonical';
+import { canonical, hash, hex } from 'romzo/canonical';
 const path = new URL('../protocol/relay-v1-vectors.json', import.meta.url);
 const original = JSON.parse(readFileSync(path, 'utf8'));
 const {value,domain,password,salt,iterations,genericOptions} = original;

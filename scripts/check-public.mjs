@@ -20,6 +20,12 @@ const fixtureValues = new Set([
   '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60',
 ]);
 function inspect(label, body) {
+  if (label.replaceAll('\\', '/').includes('.romzo-history/')) fail(label, 'private-runtime-history');
+  try {
+    const value = JSON.parse(body);
+    if (Array.isArray(value) && value.some(row => row && typeof row === 'object' && typeof row.id === 'string' && 'observedAt' in row && 'onlineMillis' in row && 'receivedBytes' in row)) fail(label, 'private-runtime-history');
+  } catch {} // Source and binaries are normally not JSON.
+
   for (const [rule, pattern] of patterns) {
     // Bare three-byte drive prefixes can occur randomly in machine code.
     // Require an actual folder component for binaries; source stays stricter.
@@ -28,11 +34,11 @@ function inspect(label, body) {
     if (candidate.test(body)) fail(label, rule);
   }
   if(label.endsWith('.env.example')) {
-    for(const match of body.matchAll(/^(?:CREATE_PASSWORD|AUTH_SALT|TICKET_KEY|TURNSTILE_SECRET)=([^\r\n]*)/gm)) {
+    for(const match of body.matchAll(/^(?:CREATE_PASSWORD|AUTH_SALT|TICKET_KEY|METRICS_KEY|TURNSTILE_SECRET)=([^\r\n]*)/gm)) {
       if(match[1].trim())fail(label,'nonempty-example-secret');
     }
   }
-  const assignments = /\b(?:CREATE_PASSWORD|AUTH_SALT|TICKET_KEY|TURNSTILE_SECRET|api[_-]?key|access[_-]?token|password|private[_-]?(?:key|seed)|secret)["']?\s*[:=]\s*["']([^"'\r\n]{8,})["']/gi;
+  const assignments = /\b(?:CREATE_PASSWORD|AUTH_SALT|TICKET_KEY|METRICS_KEY|TURNSTILE_SECRET|api[_-]?key|access[_-]?token|password|private[_-]?(?:key|seed)|secret)["']?\s*[:=]\s*["']([^"'\r\n]{8,})["']/gi;
   for (const match of body.matchAll(assignments)) {
     if (!fixtureValues.has(match[1])) fail(label, 'credential-literal');
   }
