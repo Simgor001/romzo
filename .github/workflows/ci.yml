@@ -156,12 +156,13 @@ jobs:
       - name: Deploy static site to romzo.net origin
         env:
           DEPLOY_KEY: ${{ secrets.ROMZO_DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.ROMZO_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.ROMZO_DEPLOY_PORT }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p REDACTED-PORT REDACTED-HOST >> ~/.ssh/known_hosts
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
           # The deploy key is jailed by rrsync to the site directory, so the
           # target must be relative to that jail ("." = site root), not an
           # absolute path - an absolute path gets prefixed by rrsync and fails.
-          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key -p REDACTED-PORT -o BatchMode=yes" website/ ubuntu@REDACTED-HOST:.
-
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key -p $DEPLOY_PORT -o BatchMode=yes" website/ "ubuntu@$DEPLOY_HOST:."
