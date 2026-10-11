@@ -71,13 +71,13 @@ await session.subscribe("table");
 
 ```ts
 import { buildInviteLink, parseInviteHash } from "romzo";
-const link = buildInviteLink("https://romzo.net:9224", "ABCD123XYZ", "https://game.example.com/");
+const link = buildInviteLink("https://romzo.net", "ABCD123XYZ", "https://game.example.com/");
 // https://game.example.com/#ABCD123XYZ@romzo.net
 const address = parseInviteHash(new URL(link).hash);
-// { origin: "https://romzo.net:9224", code: "ABCD123XYZ" }
+// { origin: "https://romzo.net", code: "ABCD123XYZ" }
 ```
 
-An omitted invite port is the service default port **9224** (`DEFAULT_RELAY_PORT`). A relay on 443 must be written explicitly — `buildInviteLink("https://romzo.net", ...)` produces `#ABCD123XYZ@romzo.net:443` — otherwise it would parse back as 9224. Local loopback development should always write its port explicitly.
+An omitted invite port is the service default port **443** (`DEFAULT_RELAY_PORT`), i.e. HTTPS terminated by a reverse proxy. A relay on any other port must be written explicitly — `buildInviteLink("https://romzo.net:9224", ...)` produces `#ABCD123XYZ@romzo.net:9224` — otherwise it would parse back as 443. Local loopback development should always write its port explicitly.
 
 The functions do not read or write the DOM or history. After consuming an invite the application should clear the address-bar hash and keep reload/history-navigation state itself. Production invites imply HTTPS; when the invite functions handle a local loopback address, pass `{ allowLoopbackHttp: true }` to allow http. Passwords and recovery tickets never belong in an invite.
 

@@ -8,7 +8,7 @@ English: [FRAMES.md](FRAMES.md)
 
 ## 邀请链接与房间配置
 
-标准邀请为 `https://<client-origin>/#<10位Crockford房号>@<relay-host[:port]>`，例如 `https://game.example.com/#ABCD123XYZ@romzo.net`。房号大写、不带分隔符；生产中继隐含 HTTPS。省略端口 = 服务默认端口 **9224**；443 中继必须显式写 `:443`（否则会被解析为 9224），本地回环开发应始终显式写出端口。
+标准邀请为 `https://<client-origin>/#<10位Crockford房号>@<relay-host[:port]>`，例如 `https://game.example.com/#ABCD123XYZ@romzo.net`。房号大写、不带分隔符；生产中继隐含 HTTPS。省略端口 = 服务默认端口 **443**（经反向代理的 HTTPS）；其他端口的中继必须显式写出（如直连监听的 `:9224`），本地回环开发应始终显式写出端口。
 
 fragment 不进入 HTTP 请求，客户端解析后通过 `history.replaceState` 清除，并自行保存刷新和历史导航所需的状态。口令、私钥、恢复票据不进入邀请。SDK 的 `buildInviteLink` / `parseInviteHash` 是纯函数，不操作浏览器历史。
 

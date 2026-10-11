@@ -14,7 +14,7 @@ Channels are declared by applications in `options.channels`. The relay has no pr
 
 ## Invite links and room configuration
 
-The standard invite is `https://<client-origin>/#<10-char Crockford room code>@<relay-host[:port]>`, e.g. `https://game.example.com/#ABCD123XYZ@romzo.net`. Room codes are uppercase, without separators; production relays imply HTTPS. An omitted port is the service default port **9224**; a relay on 443 must write `:443` explicitly (otherwise it reads back as 9224), and local loopback development should always write its port explicitly.
+The standard invite is `https://<client-origin>/#<10-char Crockford room code>@<relay-host[:port]>`, e.g. `https://game.example.com/#ABCD123XYZ@romzo.net`. Room codes are uppercase, without separators; production relays imply HTTPS. An omitted port is the service default port **443** (HTTPS via reverse proxy); a relay on any other port must write it explicitly (e.g. `:9224` for a direct listener), and local loopback development should always write its port explicitly.
 
 The fragment never enters the HTTP request; the client parses it, clears it via `history.replaceState`, and keeps the state needed for reloads and history navigation itself. Passwords, private keys and recovery tickets never enter an invite. The SDK functions `buildInviteLink` / `parseInviteHash` are pure and do not touch browser history.
 

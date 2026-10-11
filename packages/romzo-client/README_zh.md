@@ -63,13 +63,13 @@ await session.subscribe("table");
 
 ```ts
 import { buildInviteLink, parseInviteHash } from "romzo";
-const link = buildInviteLink("https://romzo.net:9224", "ABCD123XYZ", "https://game.example.com/");
+const link = buildInviteLink("https://romzo.net", "ABCD123XYZ", "https://game.example.com/");
 // https://game.example.com/#ABCD123XYZ@romzo.net
 const address = parseInviteHash(new URL(link).hash);
-// { origin: "https://romzo.net:9224", code: "ABCD123XYZ" }
+// { origin: "https://romzo.net", code: "ABCD123XYZ" }
 ```
 
-邀请中省略端口 = 服务默认端口 **9224**（`DEFAULT_RELAY_PORT`）。443 中继必须显式写出——`buildInviteLink("https://romzo.net", ...)` 会产出 `#ABCD123XYZ@romzo.net:443`——否则会被解析回 9224。本地回环开发应始终显式写出端口。
+邀请中省略端口 = 服务默认端口 **443**（`DEFAULT_RELAY_PORT`），即由反向代理终结的 HTTPS。其他端口的中继必须显式写出——`buildInviteLink("https://romzo.net:9224", ...)` 会产出 `#ABCD123XYZ@romzo.net:9224`——否则会被解析回 443。本地回环开发应始终显式写出端口。
 
 函数不读写 DOM 或历史。应用消费邀请后应清除地址栏 hash，并自行保留刷新和历史导航状态。生产邀请隐含 HTTPS；邀请函数处理本地回环地址时，须显式传入 `{ allowLoopbackHttp: true }` 才允许 http。口令和恢复票据不得加入邀请。
 

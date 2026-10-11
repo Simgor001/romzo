@@ -61,11 +61,14 @@ docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up --build -
 - Only configure `TRUSTED_PROXIES` for actual trusted proxy source CIDRs. CORS and WS origins must match exact `CLIENT_ORIGINS`; they do not establish identity.
 - The server does not host clients or redirects. A separate static-client configuration example is in `deploy/nginx-same-origin.conf`.
 
-Port convention: the relay listens on 9224 by default; terminate TLS on 9224
-either in a reverse proxy in front of the relay or in the relay listener
-itself. Note that Cloudflare's proxied (orange-cloud) mode does not support
-5-digit ports: with a 5-digit port use DNS-only records with your own
-certificate; Turnstile is unaffected.
+Port convention: the relay listens on loopback 9224 by default, and the
+service default port for invites is 443 — terminate TLS on 443 in a reverse
+proxy in front of the relay (nginx forwards `/ws`, `/api/v1/` and
+`/.well-known/romzo` to the relay) or listen with TLS directly on 443. A relay
+exposed on any other port must be written explicitly in the invite. Note that
+Cloudflare's proxied (orange-cloud) mode does not support 5-digit ports: with
+a 5-digit port use DNS-only records with your own certificate; Turnstile is
+unaffected.
 
 ## Limits
 

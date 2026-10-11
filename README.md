@@ -56,7 +56,7 @@ await session.subscribe('table');
 Build the SDK from this workspace with `npm run build`.
 
 Invites use `https://client/#ABCD123XYZ@relay.example.com`: an omitted port is the
-service default port 9224, so a relay on 443 must write `@relay.example.com:443`
+service default port 443, so a relay on any other port must write it explicitly, e.g. `@relay.example.com:9224`
 explicitly. Passwords, private keys and recovery tickets never belong in URLs.
 
 The application consumes and clears the fragment and owns browser-history
