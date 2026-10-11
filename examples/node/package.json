@@ -1,0 +1,17 @@
+{
+  "name": "@romzo/example-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal single-process two-peer romzo chat example.",
+  "scripts": {
+    "start": "node chat.js"
+  },
+  "dependencies": {
+    "romzo": "*"
+  },
+  "devDependencies": {
+    "ws": "8.22.0"
+  },
+  "license": "Apache-2.0"
+}
