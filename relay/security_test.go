@@ -165,12 +165,12 @@ func TestOversizeAndFloodDisconnectReleaseResources(t *testing.T) {
 			defer h.Close()
 			c := connectTest(t, h.URL, ticket, key)
 			defer c.CloseNow()
-			writeTest(t, c, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "subscribe"})
+			writeTest(t, c, map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "subscribe"})
 			_ = readTest(t, c)
 			ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 			defer cancel()
 			if mode == "oversize" {
-				_ = c.Write(ctx, websocket.MessageText, wire(map[string]any{"v": protocol, "kind": "send", "channel": "game", "id": "large", "value": strings.Repeat("x", frameLimit)}))
+				_ = c.Write(ctx, websocket.MessageText, wire(map[string]any{"v": protocol, "kind": "send", "channel": "table", "id": "large", "value": strings.Repeat("x", frameLimit)}))
 			} else {
 				for i := 0; i < 300; i++ {
 					if c.Write(ctx, websocket.MessageText, wire(map[string]any{"v": protocol, "kind": "keepalive", "id": "flood"})) != nil {
@@ -349,7 +349,7 @@ func TestIPByteBudgetIsSharedAcrossRealSocketsAndCountsPadding(t *testing.T) {
 	defer second.CloseNow()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	frame := wire(map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "a"})
+	frame := wire(map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "a"})
 	frame = append(frame, bytes.Repeat([]byte(" "), 200)...)
 	if err := first.Write(ctx, websocket.MessageText, frame); err != nil {
 		t.Fatal(err)
@@ -357,7 +357,7 @@ func TestIPByteBudgetIsSharedAcrossRealSocketsAndCountsPadding(t *testing.T) {
 	if readTest(t, first)["kind"] != "ack" {
 		t.Fatal("first padded frame rejected")
 	}
-	writeTest(t, second, map[string]any{"v": protocol, "kind": "subscribe", "channel": "lobby", "id": "b"})
+	writeTest(t, second, map[string]any{"v": protocol, "kind": "subscribe", "channel": "chat", "id": "b"})
 	terminal := readTest(t, second)
 	if terminal["kind"] != "error" || terminal["error"] != "frame_or_byte_rate" {
 		t.Fatal("second connection bypassed aggregate byte budget")

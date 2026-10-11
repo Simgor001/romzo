@@ -55,7 +55,7 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     const discoveryResponse = await fetch(origin + "/.well-known/romzo");
     assert.equal(discoveryResponse.status, 200);
     assert.equal((await discoveryResponse.json()).protocol, "romzo/v1");
-    const options = {game: 'generic-example', players: 2, rules: ['draft', {dice: 6}], expansion: null};
+    const options = {app: 'generic-example', channels: [{name: 'table', maxFrameBytes: 262144}], players: 2, rules: ['draft', {dice: 6}], expansion: null};
     const room = await createRoom(origin, options, {password});
     assert.equal(room.discovery.version, '1.3.0');
     const invite = buildInviteLink(origin, room.descriptor.code, 'http://localhost:5190/', {allowLoopbackHttp: true});
@@ -63,10 +63,10 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     const guest = await joinRoom(origin, room.descriptor.code, {validateOptions: value => assert.deepEqual(value, options)});
     const hostSession = await RelaySession.connect(wsUrl, room.admission, room.transport, socketOptions); sessions.push(hostSession);
     const guestSession = await RelaySession.connect(wsUrl, guest.admission, guest.transport, socketOptions); sessions.push(guestSession);
-    await hostSession.subscribe('game'); await guestSession.subscribe('game');
-    const forward = receive(guestSession); await hostSession.send('game', {operation: 'move', sequence: 1});
+    await hostSession.subscribe('table'); await guestSession.subscribe('table');
+    const forward = receive(guestSession); await hostSession.send('table', {operation: 'move', sequence: 1});
     assert.deepEqual((await forward).value, {operation: 'move', sequence: 1});
-    const backward = receive(hostSession); await guestSession.send('game', {operation: 'ack', sequence: 1});
+    const backward = receive(hostSession); await guestSession.send('table', {operation: 'ack', sequence: 1});
     assert.deepEqual((await backward).value, {operation: 'ack', sequence: 1});
     await hostSession.keepalive(); const recovery = hostSession.currentRecovery(); assert.ok(recovery);
     const metrics = async () => {
@@ -91,8 +91,8 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     const restoredHost = await RelaySession.connect(wsUrl, restored.admission, restored.transport, socketOptions); sessions.push(restoredHost);
     const rejoined = await joinRoom(origin, room.descriptor.code);
     const restoredGuest = await RelaySession.connect(wsUrl, rejoined.admission, rejoined.transport, socketOptions); sessions.push(restoredGuest);
-    await restoredHost.subscribe('game'); await restoredGuest.subscribe('game');
-    const afterRestart = receive(restoredGuest); await restoredHost.send('game', {operation: 'resync', sequence: 2});
+    await restoredHost.subscribe('table'); await restoredGuest.subscribe('table');
+    const afterRestart = receive(restoredGuest); await restoredHost.send('table', {operation: 'resync', sequence: 2});
     assert.deepEqual((await afterRestart).value, {operation: 'resync', sequence: 2});
     assert.equal(restored.signedDescriptor.descriptor.instance, room.descriptor.instance);
     const record=(await metrics()).roomHistory.trafficTop[0];

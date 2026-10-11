@@ -44,7 +44,7 @@ func invoke(t *testing.T, s *Server, method, path string, v any, status int, out
 }
 func allocateTest(t *testing.T, s *Server) (SignedDescriptor, ed25519.PrivateKey, ed25519.PrivateKey, SignedTicket, SignedTicket) {
 	t.Helper()
-	return allocateOptionsTest(t, s, json.RawMessage(`{"players":4,"identityMode":"mixed","factionCounts":null,"threshold":11}`))
+	return allocateOptionsTest(t, s, json.RawMessage(`{"app":"fixture","channels":[{"name":"table","maxFrameBytes":262144},{"name":"chat","maxFrameBytes":16384},{"name":"events","maxFrameBytes":16384}]}`))
 }
 func allocateOptionsTest(t *testing.T, s *Server, options json.RawMessage) (SignedDescriptor, ed25519.PrivateKey, ed25519.PrivateKey, SignedTicket, SignedTicket) {
 	t.Helper()
@@ -203,11 +203,11 @@ func TestWebsocketAuthenticatedRouting(t *testing.T) {
 	invoke(t, s, "POST", api+"rooms/"+d.Descriptor.Code+"/admissions", map[string]string{"key": hex.EncodeToString(guest.Public().(ed25519.PublicKey))}, 200, &admission)
 	b := connectTest(t, httpServer.URL, admission.Admission, guest)
 	defer b.CloseNow()
-	writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "1"})
+	writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "1"})
 	if readTest(t, a)["kind"] != "ack" {
 		t.Fatal("subscribe failed")
 	}
-	writeTest(t, b, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "2"})
+	writeTest(t, b, map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "2"})
 	joinB := readTest(t, b)
 	_ = readTest(t, b)
 	joinA := readTest(t, a)
@@ -215,14 +215,14 @@ func TestWebsocketAuthenticatedRouting(t *testing.T) {
 		t.Fatal("presence missing")
 	}
 	for i := 0; i < 10; i++ {
-		writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "channel": "game", "target": joinA["peer"], "id": "s", "value": map[string]any{"seq": i}})
+		writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "channel": "table", "target": joinA["peer"], "id": "s", "value": map[string]any{"seq": i}})
 		_ = readTest(t, a)
 		got := readTest(t, b)["value"].(map[string]any)
 		if got["seq"] != json.Number(string(rune('0'+i))) {
 			t.Fatal("order violated")
 		}
 	}
-	writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "channel": "game", "target": "missing", "id": "x", "value": 1})
+	writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "channel": "table", "target": "missing", "id": "x", "value": 1})
 	if readTest(t, a)["kind"] != "error" {
 		t.Fatal("invalid target became broadcast")
 	}
@@ -231,7 +231,7 @@ func TestWebsocketAuthenticatedRouting(t *testing.T) {
 		t.Fatal("no recovery ticket")
 	}
 	// An explicitly empty destination is invalid, never a broadcast.
-	writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "channel": "game", "target": "", "id": "empty", "value": 1})
+	writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "channel": "table", "target": "", "id": "empty", "value": 1})
 	termination := readTest(t, a)
 	if termination["kind"] != "error" || termination["error"] != "invalid_target_encoding" {
 		t.Fatalf("terminal error frame missing, got %v", termination)
@@ -356,7 +356,7 @@ func TestRestartRestorationAuthenticatesOriginalSocketKey(t *testing.T) {
 	defer first.Close()
 	c := connectTest(t, first.URL, ticket, key)
 	defer c.CloseNow()
-	writeTest(t, c, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "s"})
+	writeTest(t, c, map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "s"})
 	_ = readTest(t, c)
 	writeTest(t, c, map[string]any{"v": protocol, "kind": "keepalive", "id": "k"})
 	raw, _ := json.Marshal(readTest(t, c)["recovery"])
@@ -373,7 +373,7 @@ func TestRestartRestorationAuthenticatesOriginalSocketKey(t *testing.T) {
 	invoke(t, fresh, "POST", api+"rooms/"+d.Descriptor.Code+"/restore", map[string]any{"signed": d, "recovery": recovery, "signature": signed(key, "romzo/relay-restore/v1", recovery)}, 200, &admission)
 	restored := connectTest(t, second.URL, admission.Admission, key)
 	defer restored.CloseNow()
-	writeTest(t, restored, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "s"})
+	writeTest(t, restored, map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "s"})
 	if readTest(t, restored)["kind"] != "ack" || fresh.rooms[d.Descriptor.Code].Signed.Descriptor.Instance != d.Descriptor.Instance {
 		t.Fatal("original socket identity or instance not restored")
 	}
@@ -413,7 +413,7 @@ func TestDeclarativeChannelsEndToEnd(t *testing.T) {
 		t.Fatal("declared channel forwarding broken")
 	}
 	// Compatibility names are not declared, so they are unknown here.
-	writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "s"})
+	writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "s"})
 	f := readTest(t, a)
 	if f["kind"] != "error" || f["error"] != "invalid_channel" {
 		t.Fatalf("undeclared compatibility channel accepted: %v", f)
@@ -455,6 +455,7 @@ func TestChannelDeclarationValidation(t *testing.T) {
 		"limit_too_high":     `{"channels":[{"name":"table","maxFrameBytes":262145}]}`,
 		"limit_non_integer":  `{"channels":[{"name":"table","maxFrameBytes":1.5}]}`,
 		"unknown_field":      `{"channels":[{"name":"table","maxFrameBytes":256,"extra":1}]}`,
+		"null_declaration":   `{"channels":null}`,
 		"channels_not_array": `{"channels":{"name":"table","maxFrameBytes":256}}`,
 		"entry_not_object":   `{"channels":["table"]}`,
 	}
@@ -491,16 +492,28 @@ func TestChannelDeclarationValidation(t *testing.T) {
 	})
 }
 
-func TestDefaultChannelsRegression(t *testing.T) {
-	s := newServer(testConfig())
-	d, _, _, _, _ := allocateTest(t, s)
-	channels := s.rooms[d.Descriptor.Code].Channels
-	if len(channels) != 3 || channels["discovery"] != controlLimit || channels["lobby"] != controlLimit || channels["game"] != payloadLimit {
-		t.Fatalf("compatibility defaults changed: %v", channels)
-	}
-	for name, limit := range channels {
-		if limit < 256 || limit > payloadLimit {
-			t.Fatalf("default channel limit out of range: %s=%d", name, limit)
+func TestUndeclaredChannelsStayEmpty(t *testing.T) {
+	for _, options := range []string{`{}`, `{"channels":[]}`, `null`, `"application-options"`} {
+		s := newServer(testConfig())
+		desc, _, key, ticket, recovery := allocateOptionsTest(t, s, json.RawMessage(options))
+		if len(s.rooms[desc.Descriptor.Code].Channels) != 0 {
+			t.Fatal("undeclared channels appeared")
 		}
+		fresh := newServer(s.cfg)
+		invoke(t, fresh, "POST", api+"rooms/"+desc.Descriptor.Code+"/restore", map[string]any{"signed": desc, "recovery": recovery, "signature": signed(key, "romzo/relay-restore/v1", recovery)}, 200, nil)
+		if len(fresh.rooms[desc.Descriptor.Code].Channels) != 0 {
+			t.Fatal("restore manufactured channels")
+		}
+		server := httptest.NewServer(fresh)
+		for _, name := range []string{"discovery", "lobby", "game", "table"} {
+			conn := connectTest(t, server.URL, ticket, key)
+			writeTest(t, conn, map[string]any{"v": protocol, "kind": "subscribe", "channel": name, "id": "s"})
+			frame := readTest(t, conn)
+			if frame["error"] != "invalid_channel" {
+				t.Fatal("undeclared subscription accepted", name, frame)
+			}
+			conn.CloseNow()
+		}
+		server.Close()
 	}
 }

@@ -81,7 +81,7 @@ func TestLoad(t *testing.T) {
 					}
 				}
 			}(c)
-			writeTest(t, c, map[string]any{"v": protocol, "kind": "subscribe", "channel": "game", "id": "subscribe"})
+			writeTest(t, c, map[string]any{"v": protocol, "kind": "subscribe", "channel": "table", "id": "subscribe"})
 			wg.Add(1)
 			go func(c *websocket.Conn) {
 				defer wg.Done()
@@ -135,7 +135,7 @@ func TestLoad(t *testing.T) {
 					}
 					writeCtx, done := context.WithTimeout(ctx, 5*time.Second)
 					kind := "send"
-					v := map[string]any{"v": protocol, "kind": kind, "channel": "game", "id": "load", "value": map[string]any{"sent": time.Now().UnixMicro(), "opaque": payload}}
+					v := map[string]any{"v": protocol, "kind": kind, "channel": "table", "id": "load", "value": map[string]any{"sent": time.Now().UnixMicro(), "opaque": payload}}
 					e := c.Write(writeCtx, websocket.MessageText, wire(v))
 					done()
 					if e != nil && ctx.Err() == nil {

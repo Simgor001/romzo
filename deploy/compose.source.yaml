@@ -1,0 +1,7 @@
+# Optional local source build; combine with compose.yaml.
+services:
+  relay:
+    image: romzo-local:dev
+    build:
+      context: ../relay
+      dockerfile: ../deploy/Dockerfile

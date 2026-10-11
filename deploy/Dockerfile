@@ -1,6 +1,6 @@
 FROM --platform=$BUILDPLATFORM golang:1.26.1-alpine AS build
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETOS
+ARG TARGETARCH
 RUN apk add --no-cache ca-certificates
 WORKDIR /src
 COPY go.mod go.sum ./

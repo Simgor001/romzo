@@ -15,21 +15,8 @@ export interface ChannelDeclaration {
   maxFrameBytes: number;
 }
 
-/**
- * Channel set every room has when its options declare no channels: the
- * pre-1.3.0 compatibility defaults (discovery/lobby at 16 KiB, game at 256 KiB).
- */
-export const DEFAULT_CHANNELS: readonly ChannelDeclaration[] = [
-  { name: "discovery", maxFrameBytes: 16 * 1024 },
-  { name: "lobby", maxFrameBytes: 16 * 1024 },
-  { name: "game", maxFrameBytes: 256 * 1024 },
-];
-
 /** Name of a room channel — any name the room's options declare. */
 export type Channel = string;
-
-/** Names of the compatibility default channels; declared rooms may use others. */
-export const CHANNELS: readonly Channel[] = DEFAULT_CHANNELS.map((c) => c.name);
 
 /** POST /api/v1/rooms request payload (challenge-bound, idempotent). */
 export interface AllocationRequest {
