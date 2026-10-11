@@ -17,3 +17,6 @@ test-results/
 
 # Private operational history; never publish room activity records.
 .romzo-history/
+
+# Local SSH credentials must never enter public commits.
+.ssh/
