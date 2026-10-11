@@ -1,7 +1,7 @@
 {
   "name": "@romzo/client",
-  "version": "0.1.0",
-  "description": "Romzo \u2014 client SDK for a room-based opaque WebSocket relay (ru-relay/v1). Zero runtime dependencies.",
+  "version": "0.2.0",
+  "description": "Romzo \u2014 client SDK for a room-based opaque WebSocket relay (romzo/v1). Zero runtime dependencies.",
   "type": "module",
   "exports": {
     ".": {
@@ -32,6 +32,7 @@
   "files": [
     "dist",
     "README.md",
+    "README_zh.md",
     "LICENSE"
   ],
   "scripts": {
