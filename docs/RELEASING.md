@@ -9,8 +9,8 @@ Release steps for maintainers. Everything publishes from a clean, verified tree.
    the stable API commitment) and refresh `package-lock.json` (`npm install`).
 3. Preflight the package contents: `npm pack -w romzo --dry-run`
    (expect only `dist/`, `README.md`, `LICENSE`).
-4. Ensure the repository secret `NPM_TOKEN` is set (npmjs granular access token,
-   scoped to the `romzo` package, Automation type).
+4. Publishing uses npm Trusted Publishing (OIDC) tied to the `ci.yml`
+   workflow in this repository — no npm token secret is required.
 5. Tag the repo: `git tag client-v<version>` and push the tag.
    The CI `npm` job verifies the tag against `packages/romzo-client/package.json`,
    reruns the full verification suite, and publishes `romzo` to npmjs

@@ -124,6 +124,9 @@ jobs:
   npm:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/client-v')
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     concurrency:
       group: npm-${{ github.ref }}
       cancel-in-progress: false
@@ -143,8 +146,6 @@ jobs:
       - run: npm ci
       - run: npm run verify
       - name: Publish SDK to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish -w romzo --access public
   deploy:
     needs: [verify, docker]
