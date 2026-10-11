@@ -1,0 +1,28 @@
+{
+  "name": "romzo",
+  "version": "1.2.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "packages/romzo-client"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "npm run build -w @romzo/client",
+    "build:relay": "node apps/relay/scripts/build.mjs",
+    "check:public": "node scripts/check-public.mjs",
+    "test": "npm test -w @romzo/client && npm run test:relay",
+    "test:relay": "node scripts/relay.mjs test",
+    "test:relay:race": "node scripts/relay.mjs race",
+    "test:integration": "npm run build && node --test tests/integration/relay.test.mjs",
+    "verify": "npm run check:public && npm run test:security && npm run check -w @romzo/client && npm test -w @romzo/client && npm run test:relay && npm run test:relay:race && npm run test:integration && node scripts/generate-vectors.mjs --check && npm run build:relay && npm run check:artifacts",
+    "test:security": "node --test tests/security/public-boundary.test.mjs",
+    "check:artifacts": "node scripts/check-public.mjs --artifacts"
+  },
+  "devDependencies": {
+    "ws": "8.22.0"
+  }
+}
