@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Romzo SDK — @romzo/client</title>
+<meta name="description" content="SDK reference for @romzo/client: rooms, tickets, channels, host and guest flows, recovery.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f05623'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='17' font-weight='700' fill='%230f0e0d' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="wordmark" href="index.html">Romzo<i></i></a>
+    <div class="nav-links">
+      <a href="index.html" class="l-en">home</a>
+      <a href="index.html" class="l-zh">首页</a>
+      <a href="sdk.html" class="active">sdk</a>
+      <a href="https://github.com/Simgor001/romzo">github</a>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="lang">
+      <button type="button" aria-haspopup="true" aria-label="language">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </button>
+      <div class="lang-menu">
+        <button type="button" data-set-lang="en">English</button>
+        <button type="button" data-set-lang="zh">中文</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<header class="page-head">
+  <div class="wrap">
+    <h1>@romzo/client</h1>
+    <p class="l-en">TypeScript SDK for the romzo/v1 protocol. Its only dependencies
+      are WebCrypto and WebSocket.</p>
+    <p class="l-zh">romzo/v1 协议的 TypeScript SDK。只用 WebCrypto 与 WebSocket，零运行时依赖。</p>
+  </div>
+</header>
+
+<main>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Build from source</h2>
+    <h2 class="l-zh">从源码构建</h2>
+    <p class="l-en">The SDK lives in <code>packages/romzo-client</code>. From the
+      repository root:</p>
+    <p class="l-zh">SDK 位于 <code>packages/romzo-client</code>。在仓库根目录执行：</p>
+
+    <pre><code data-lang="sh">npm ci
+npm run build -w @romzo/client</code></pre>
+
+    <p class="l-en">The build is ESM with strict TypeScript types.</p>
+    <p class="l-zh">构建产物为 ESM，带严格模式 TypeScript 类型。</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Concepts</h2>
+    <h2 class="l-zh">概念</h2>
+    <ul class="plain">
+      <li class="l-en"><strong>Room</strong> — a 10-character room code. The host signs
+        the room descriptor with the <code>host</code> key pair.</li>
+      <li class="l-zh"><strong>房间</strong>——10 位房间码，房主持 <code>host</code>
+        密钥对 descriptor 签名。</li>
+      <li class="l-en"><strong>Tickets</strong> — admission tickets authenticate the
+        WebSocket (60 seconds, single handshake). Recovery tickets restore a room after
+        a crash or restart.</li>
+      <li class="l-zh"><strong>票据</strong>——admission 票据用于 WebSocket 认证
+        （60 秒、单次握手）；recovery 票据在崩溃或重启后恢复房间。</li>
+      <li class="l-en"><strong>Channels</strong> — <code>discovery</code> /
+        <code>lobby</code> / <code>game</code>. Subscribers receive
+        <code>join</code> / <code>leave</code> / <code>receive</code> frames.</li>
+      <li class="l-zh"><strong>通道</strong>——<code>discovery</code> /
+        <code>lobby</code> / <code>game</code>，订阅后收到
+        <code>join</code> / <code>leave</code> / <code>receive</code> 帧。</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Host: create, confirm, connect</h2>
+    <h2 class="l-zh">房主：创建、确认、连接</h2>
+
+    <div class="l-en"><pre><code>import { createRoom, RelaySession } from '@romzo/client';
+
+const room = await createRoom('https://romzo.net', roomOptions);
+
+const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
+const session = await RelaySession.connect(url, room.admission, room.transport);
+
+session.on('join', (_p, { channel, peer, key }) => { /* peer key for E2E crypto */ });
+session.on('receive', (value, { channel, peer }) => { /* a peer's payload */ });
+session.on('close', () => { /* reconnect with the recovery ticket */ });
+
+await session.subscribe('game');</code></pre></div>
+
+    <div class="l-zh"><pre><code>import { createRoom, RelaySession } from '@romzo/client';
+
+const room = await createRoom('https://romzo.net', roomOptions);
+
+const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
+const session = await RelaySession.connect(url, room.admission, room.transport);
+
+session.on('join', (_p, { channel, peer, key }) => { /* peer 公钥 key 可用于端侧加密 */ });
+session.on('receive', (value, { channel, peer }) => { /* 他人 send 的负载 */ });
+session.on('close', () => { /* 终端 error 帧或传输断开，用 recovery 票据重连 */ });
+
+await session.subscribe('game');</code></pre></div>
+
+    <p class="l-en">Relays with <code>CREATE_AUTH=password</code> take
+      <code>{ password }</code> as the third argument of <code>createRoom</code>.</p>
+    <p class="l-zh">开了 <code>CREATE_AUTH=password</code> 的中继，
+      <code>createRoom</code> 第三个参数传 <code>{ password }</code>。</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Guest: join from an invite</h2>
+    <h2 class="l-zh">访客：凭邀请加入</h2>
+
+    <pre><code>import { joinRoom, RelaySession } from '@romzo/client';
+
+const joined = await joinRoom('https://romzo.net', 'ABCD2345EF');
+const url = joined.signedDescriptor.descriptor.origin
+  .replace(/^http/, 'ws') + '/ws';
+const session = await RelaySession.connect(url, joined.admission, joined.transport);
+await session.subscribe('lobby');</code></pre>
+
+    <p class="l-en"><code>joinRoom</code> verifies the descriptor, config hash and host
+      signature before requesting admission.</p>
+    <p class="l-zh"><code>joinRoom</code> 在申请 admission 前核对 descriptor、configHash
+      与宿主签名。</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Crash recovery</h2>
+    <h2 class="l-zh">崩溃恢复</h2>
+    <p class="l-en">Keepalive responses update <code>session.currentRecovery()</code>
+      automatically. Persist three values — <code>signedDescriptor</code>,
+      <code>transport</code>, <code>recovery</code> — to restore the room after a
+      restart:</p>
+    <p class="l-zh">keepalive 应答自动更新 <code>session.currentRecovery()</code>。
+      持久化三个值——<code>signedDescriptor</code>、<code>transport</code>、
+      <code>recovery</code>——即可在中继重启后恢复房间：</p>
+
+    <pre><code>import { restoreSession, RelaySession } from '@romzo/client';
+
+const restored = await restoreSession(
+  saved.signedDescriptor, saved.recovery, saved.transport);
+const session = await RelaySession.connect(wsUrl,
+  restored.admission, restored.transport);
+// resubscribe and sync history in the envelope layer</code></pre>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Modules</h2>
+    <h2 class="l-zh">模块</h2>
+
+    <table class="api">
+      <tr class="l-en"><th>module</th><th>contents</th></tr>
+      <tr class="l-zh"><th>模块</th><th>内容</th></tr>
+      <tr>
+        <td>canonical</td>
+        <td class="l-en"><code>canonical()</code>, <code>hash(domain, v)</code>,
+          <code>mac(key, domain, v)</code>, hex utilities — byte-compatible with the Go
+          implementation</td>
+        <td class="l-zh"><code>canonical()</code>、<code>hash(domain, v)</code>、
+          <code>mac(key, domain, v)</code>、hex 工具，与 Go 实现逐字节一致</td>
+      </tr>
+      <tr>
+        <td>crypto</td>
+        <td class="l-en">Ed25519 key generation / import / export,
+          <code>sign</code> / <code>verify</code>, PBKDF2 password derivation (600000
+          iterations), <code>passwordProof</code></td>
+        <td class="l-zh">Ed25519 密钥生成 / 导入导出、<code>sign</code> /
+          <code>verify</code>、PBKDF2 口令派生（600000 迭代）、<code>passwordProof</code></td>
+      </tr>
+      <tr>
+        <td>http</td>
+        <td class="l-en"><code>discover</code>, <code>createChallenge</code>,
+          <code>allocate</code>, <code>confirmRoom</code>, <code>requestAdmission</code>,
+          <code>fetchDescriptor</code>, <code>restoreRoom</code> — injected
+          <code>fetch</code>, errors throw <code>RelayHttpError(code, status)</code></td>
+        <td class="l-zh"><code>discover</code>、<code>createChallenge</code>、
+          <code>allocate</code>、<code>confirmRoom</code>、<code>requestAdmission</code>、
+          <code>fetchDescriptor</code>、<code>restoreRoom</code>，支持注入
+          <code>fetch</code>，错误抛 <code>RelayHttpError(code, status)</code></td>
+      </tr>
+      <tr>
+        <td>session</td>
+        <td class="l-en"><code>RelaySession.connect(url, admission, identity, opts)</code>
+          — four-frame handshake, <code>subscribe</code> / <code>unsubscribe</code> /
+          <code>send</code> / <code>keepalive</code>, events, automatic keepalive,
+          <code>currentRecovery()</code>, injectable WebSocket factory</td>
+        <td class="l-zh"><code>RelaySession.connect(url, admission, identity, opts)</code>——
+          四帧握手、<code>subscribe</code> / <code>unsubscribe</code> /
+          <code>send</code> / <code>keepalive</code>、事件订阅、自动保活、
+          <code>currentRecovery()</code>，支持注入 WebSocket 工厂</td>
+      </tr>
+      <tr>
+        <td class="l-en">facade</td>
+        <td class="l-zh">门面</td>
+        <td class="l-en"><code>createRoom()</code> / <code>joinRoom()</code> /
+          <code>restoreSession()</code> wrap the full HTTP sequence</td>
+        <td class="l-zh"><code>createRoom()</code> / <code>joinRoom()</code> /
+          <code>restoreSession()</code> 封装完整 HTTP 序列</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">The SDK leaves these to you</h2>
+    <h2 class="l-zh">以下部分由调用方负责</h2>
+    <ul class="plain">
+      <li class="l-en"><strong>Reconnection.</strong> After a drop, reconnect with the
+        recovery ticket, resubscribe and sync history.</li>
+      <li class="l-zh"><strong>重连。</strong>断线后凭 recovery 票据重连、重新订阅并同步历史。</li>
+      <li class="l-en"><strong>Key storage.</strong> Generated keys are extractable for
+        export and recovery. Pick a protected storage and a clearing policy.</li>
+      <li class="l-zh"><strong>密钥存储。</strong>生成的密钥可导出（extractable），用于
+        导出与恢复。存储保护与清除策略由应用选择。</li>
+      <li class="l-en"><strong>Rules.</strong> The SDK does not interpret game options.
+        Validate them with the <code>validateOptions</code> callback.</li>
+      <li class="l-zh"><strong>规则。</strong>SDK 不解释桌游 options，通过
+        <code>validateOptions</code> 回调校验。</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Reference</h2>
+    <h2 class="l-zh">参考文档</h2>
+    <ul class="plain">
+      <li class="l-en"><a href="https://github.com/Simgor001/romzo/blob/main/apps/relay/FRAMES.md">WebSocket frame protocol (FRAMES.md)</a></li>
+      <li class="l-zh"><a href="https://github.com/Simgor001/romzo/blob/main/apps/relay/FRAMES_zh.md">WebSocket 帧协议（FRAMES_zh.md）</a></li>
+      <li><a href="https://github.com/Simgor001/romzo/blob/main/apps/relay/openapi.yaml">HTTP OpenAPI (openapi.yaml)</a></li>
+      <li class="l-en"><a href="https://github.com/Simgor001/romzo/blob/main/docs/architecture.md">Architecture (docs/architecture.md)</a></li>
+      <li class="l-zh"><a href="https://github.com/Simgor001/romzo/blob/main/docs/architecture_zh.md">架构指南（docs/architecture_zh.md）</a></li>
+      <li class="l-en"><a href="https://github.com/Simgor001/romzo/blob/main/SECURITY.md">Security (SECURITY.md)</a></li>
+      <li class="l-zh"><a href="https://github.com/Simgor001/romzo/blob/main/SECURITY_zh.md">安全说明（SECURITY_zh.md）</a></li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>romzo · apache-2.0 · romzo/v1 · relay 1.2.0 · sdk 0.2.0</span>
+    <ul class="doc-links">
+      <li><a href="index.html" class="l-en">home</a></li>
+      <li><a href="index.html" class="l-zh">首页</a></li>
+      <li><a href="https://github.com/Simgor001/romzo">github</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

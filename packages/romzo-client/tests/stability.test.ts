@@ -106,7 +106,7 @@ describe("credential-owned cache", () => {
   it("createRoom clears the provider after authentication failure", async () => {
     const provider = { get: vi.fn(async () => await createPasswordKeyCache("wrong").get(origin, "ab".repeat(32), 1)), clear: vi.fn() };
     const fetch = vi.fn(async (url: string) => {
-      if (url.endsWith("relic-undertow")) return json({ protocol: PROTOCOL, origin, auth: "password", salt: "ab".repeat(32), iterations: 600000, algorithm: "PBKDF2-HMAC-SHA256" });
+      if (url.endsWith("romzo")) return json({ protocol: PROTOCOL, origin, auth: "password", salt: "ab".repeat(32), iterations: 600000, algorithm: "PBKDF2-HMAC-SHA256" });
       if (url.endsWith("room-challenges")) return json({ challenge: "cc".repeat(32) });
       return json({ error: "authorization_failed" }, 401);
     });
@@ -119,8 +119,8 @@ describe("credential-owned cache", () => {
 
 async function signedRoom() {
   const host = await generateKeyPair();
-  const descriptor = { protocol: PROTOCOL, origin, code: "ABCD2345EF", instance: "ab".repeat(16), host: host.publicKey, transport: host.publicKey, capability: "cd".repeat(16), options: { players: 4 }, configHash: await hash("ru/lobby-options/v1", { players: 4 }) };
-  return { descriptor, signature: await sign(host, descriptor, "ru/relay-descriptor/v1") };
+  const descriptor = { protocol: PROTOCOL, origin, code: "ABCD2345EF", instance: "ab".repeat(16), host: host.publicKey, transport: host.publicKey, capability: "cd".repeat(16), options: { players: 4 }, configHash: await hash("romzo/lobby-options/v1", { players: 4 }) };
+  return { descriptor, signature: await sign(host, descriptor, "romzo/relay-descriptor/v1") };
 }
 
 describe("join-side descriptor trust", () => {

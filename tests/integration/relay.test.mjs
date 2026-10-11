@@ -46,10 +46,13 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     throw Error('local relay readiness timed out');
   }
   const socketOptions = {webSocketFactory: url => new WebSocket(url, {headers: {Origin: clientOrigin}})};
-  const wsUrl = origin.replace(/^http/, 'ws') + '/_relic/v1/ws';
+  const wsUrl = origin.replace(/^http/, 'ws') + '/ws';
   try {
     execFileSync('go', ['build', '-trimpath', '-o', binary, '.'], {cwd: directory, stdio: 'pipe', windowsHide: true});
     await start();
+    const discoveryResponse = await fetch(origin + "/.well-known/romzo");
+    assert.equal(discoveryResponse.status, 200);
+    assert.equal((await discoveryResponse.json()).protocol, "romzo/v1");
     const options = {game: 'generic-example', players: 2, rules: ['draft', {dice: 6}], expansion: null};
     const room = await createRoom(origin, options, {password});
     assert.equal(room.discovery.version, '1.2.0');

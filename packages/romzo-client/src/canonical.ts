@@ -30,7 +30,7 @@ function quote(value: string): string {
 }
 
 /**
- * Canonical JSON, byte-compatible with the ru-relay/v1 Go implementation:
+ * Canonical JSON, byte-compatible with the romzo/v1 Go implementation:
  * object keys sorted by UTF-16 code unit, HTML characters not escaped,
  * U+2028/U+2029 literal, and only safe integers accepted.
  */

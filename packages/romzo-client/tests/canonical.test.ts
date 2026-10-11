@@ -44,10 +44,10 @@ describe("canonical JSON", () => {
 
   it("hash and mac use the domain separator", async () => {
     const value = { a: 1 };
-    expect(await hash("ru/x/v1", value)).not.toBe(await hash("ru/y/v1", value));
+    expect(await hash("romzo/x/v1", value)).not.toBe(await hash("romzo/y/v1", value));
     const key = unhex("ab".repeat(32));
-    const a = await mac(key, "ru/x/v1", value);
-    const b = await mac(key, "ru/y/v1", value);
+    const a = await mac(key, "romzo/x/v1", value);
+    const b = await mac(key, "romzo/y/v1", value);
     expect(a).not.toBe(b);
     expect(a).toMatch(/^[a-f0-9]{64}$/);
   });

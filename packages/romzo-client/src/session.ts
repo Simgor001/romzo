@@ -155,11 +155,11 @@ export class RelaySession {
             if (frame.kind === "challenge" && state === "challenge") {
               state = "signing";
               const value = frame.value as ChallengeValue;
-              const admissionDigest = await hash("ru/relay-admission/v1", this.admission);
+              const admissionDigest = await hash("romzo/relay-admission/v1", this.admission);
               if (!value || value.protocol !== PROTOCOL ||
                   value.origin !== this.admission.ticket.origin || value.ticket !== admissionDigest ||
                   !/^[a-f0-9]{64}$/.test(value.challenge)) throw new Error("challenge_binding_failed");
-              const signature = await sign(this.identity, value, "ru/relay-connect/v1");
+              const signature = await sign(this.identity, value, "romzo/relay-connect/v1");
               // Hashing/signing yields: close, timeout or a duplicate challenge may have failed meanwhile.
               if (state !== "signing") return;
               state = "authenticated";

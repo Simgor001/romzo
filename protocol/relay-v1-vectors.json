@@ -7,17 +7,17 @@
     ],
     "a": "遗迹<&> 暗涌"
   },
-  "domain": "ru/relay-vector/v1",
+  "domain": "romzo/relay-vector/v1",
   "canonical": "{\"a\":\"遗迹<&> 暗涌\",\"z\":[true,null,123]}",
-  "digest": "647e7e9226fd93290ce34fccc6bc3ff18e8af3c1877c81e776a577c12d1156eb",
+  "digest": "a0d92d8cdd46127eccf9492f8ef5a96e8770548de25bbbf515283d3a3dd3ed29",
   "password": "public-test-vector-password",
   "salt": "abababababababababababababababababababababababababababababababab",
   "iterations": 600000,
   "derived": "2cfa29ecfd1f324f153892754e07f99c38f3ac2023173c0620e63dd8d6fc76b0",
-  "hmac": "c6112ae957753d457b4b1909140109ae7e18097f85459481264c0a2ada269345",
-  "createProof": "103bd990110a4dec3410de2a8ad5d6c056909ee650914ac608f6ac2701e0b271",
+  "hmac": "08724dc0b736dc240e74e0872c994b401475fc6e34d4621c7618d4d34b9154a4",
+  "createProof": "fb5ea094a24b6e4568123bcf1500899529d7e12eca62e7e6c3a247447670d06f",
   "publicKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
-  "signature": "47e5597849582779f8941a92ee4729ed23b55d535fbc82053ed5fbf5480cce698a02d99bf2b3119077321ae799f14e99d46ffbd9eb8b3a94d09d56a019f9e80a",
+  "signature": "5b51cd5d2ecd019542378192796582b3e363201d8431602a4c2361ac28ce011156fda817870b5ab8d9c1d3cd414e5952d932b8940fd2ec4c490bb426149cac04",
   "relayVersion": "1.2.0",
   "genericOptions": {
     "game": "forest",
@@ -30,5 +30,5 @@
     ],
     "expansion": null
   },
-  "genericOptionsHash": "6964d63fca3673decf4e44e5b72dad845e158d581ac474e0838a3dd80aae368d"
+  "genericOptionsHash": "de40fab7ebc3a0446c2f057e53ed0209831890c675ed1d7cc4e01d55b4985c41"
 }

@@ -36,7 +36,7 @@ type passwordAuthorizer struct{ key []byte }
 
 func (a passwordAuthorizer) Authorize(r AllocationRequest, proof string) (string, error) {
 	p, e := hex.DecodeString(proof)
-	expected, _ := hex.DecodeString(mac(a.key, "ru/relay-create/v1", r))
+	expected, _ := hex.DecodeString(mac(a.key, "romzo/relay-create/v1", r))
 	if e != nil || !hmac.Equal(p, expected) {
 		return "", errors.New("authorization_failed")
 	}
@@ -191,13 +191,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result(w, 200, map[string]bool{"ready": true})
 		return
 	}
-	if r.Method == "GET" && r.URL.Path == "/.well-known/relic-undertow" {
+	if r.Method == "GET" && r.URL.Path == "/.well-known/romzo" {
 		result(w, 200, map[string]any{"protocol": protocol, "version": version, "origin": s.cfg.Origin, "auth": s.cfg.Auth, "salt": hex.EncodeToString(s.cfg.Salt), "iterations": 600000, "algorithm": "PBKDF2-HMAC-SHA256", "turnstile": s.cfg.TurnstileSecret != "", "limits": map[string]int{"framesPerSecond": s.cfg.FramesPerSecond, "bytesPerSecond": s.cfg.BytesPerSecond}})
 		return
 	}
 	ip := s.clientIP(r)
 	limitKey, rate, burst := r.URL.Path, float64(2), float64(10)
-	if r.URL.Path == api+"ws" {
+	if r.URL.Path == wsPath {
 		rate, burst = 8, 32
 	}
 	if strings.HasPrefix(r.URL.Path, api+"rooms/") {
@@ -229,7 +229,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result(w, 200, map[string]any{"rooms": len(s.rooms), "connections": s.connections, "unauthenticated": s.unauthenticated, "queueBytes": s.queued, "receivedFrames": s.receivedFrames, "receivedBytes": s.receivedBytes, "sentFrames": s.sentFrames, "sentBytes": s.sentBytes, "queueRejected": s.queueRejected, "closedReasons": s.closeReasons})
 		return
 	}
-	if r.Method == "GET" && r.URL.Path == api+"ws" {
+	if r.Method == "GET" && r.URL.Path == wsPath {
 		s.websocket(w, r)
 		return
 	}
@@ -326,11 +326,11 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := body.Request
-	if q.Protocol != protocol || q.Origin != s.cfg.Origin || !validHex(q.RequestID, 16) || !validHex(q.Host, 32) || !validHex(q.Transport, 32) || !validHex(q.Capability, 16) || len(q.Options) > s.cfg.OptionsBytes || !validOptions(q.Options) || hash("ru/lobby-options/v1", q.Options) != q.ConfigHash {
+	if q.Protocol != protocol || q.Origin != s.cfg.Origin || !validHex(q.RequestID, 16) || !validHex(q.Host, 32) || !validHex(q.Transport, 32) || !validHex(q.Capability, 16) || len(q.Options) > s.cfg.OptionsBytes || !validOptions(q.Options) || hash("romzo/lobby-options/v1", q.Options) != q.ConfigHash {
 		failure(w, 400, "invalid_allocation")
 		return
 	}
-	h := hash("ru/relay-request/v1", q)
+	h := hash("romzo/relay-request/v1", q)
 	s.mu.Lock()
 	if code := s.requests[q.RequestID]; code != "" {
 		room := s.rooms[code]
@@ -418,7 +418,7 @@ func (s *Server) confirm(w http.ResponseWriter, r *http.Request, code string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	room := s.rooms[code]
-	if room == nil || hash("ru/relay-descriptor-body/v1", room.Signed.Descriptor) != hash("ru/relay-descriptor-body/v1", d.Descriptor) || !verifySignature(d.Descriptor.Host, d.Signature, "ru/relay-descriptor/v1", d.Descriptor) {
+	if room == nil || hash("romzo/relay-descriptor-body/v1", room.Signed.Descriptor) != hash("romzo/relay-descriptor-body/v1", d.Descriptor) || !verifySignature(d.Descriptor.Host, d.Signature, "romzo/relay-descriptor/v1", d.Descriptor) {
 		failure(w, 403, "confirmation_failed")
 		return
 	}
@@ -475,12 +475,12 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
 	defer s.mu.Unlock()
 	t := b.Recovery.Ticket
 	d := b.Signed.Descriptor
-	if len(d.Options) > s.cfg.OptionsBytes || !validOptions(d.Options) || !s.validTicket(b.Recovery, "recovery") || t.Code != code || t.Instance != d.Instance || t.Code != d.Code || d.Origin != s.cfg.Origin || t.Digest != hash("ru/relay-descriptor/v1", b.Signed) || !verifySignature(d.Host, b.Signed.Signature, "ru/relay-descriptor/v1", d) || !verifySignature(t.Key, b.Signature, "ru/relay-restore/v1", b.Recovery) {
+	if len(d.Options) > s.cfg.OptionsBytes || !validOptions(d.Options) || !s.validTicket(b.Recovery, "recovery") || t.Code != code || t.Instance != d.Instance || t.Code != d.Code || d.Origin != s.cfg.Origin || t.Digest != hash("romzo/relay-descriptor/v1", b.Signed) || !verifySignature(d.Host, b.Signed.Signature, "romzo/relay-descriptor/v1", d) || !verifySignature(t.Key, b.Signature, "romzo/relay-restore/v1", b.Recovery) {
 		failure(w, 403, "restore_failed")
 		return
 	}
 	room := s.rooms[code]
-	if room != nil && hash("ru/relay-descriptor/v1", room.Signed) != t.Digest {
+	if room != nil && hash("romzo/relay-descriptor/v1", room.Signed) != t.Digest {
 		failure(w, 409, "room_identity_conflict")
 		return
 	}

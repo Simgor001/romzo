@@ -40,7 +40,7 @@ describe("createRoom facade (scripted fetch)", () => {
   it("runs challenge -> allocate -> confirm with password proof and turnstile", async () => {
     let allocated: any = null;
     const { fetch, calls } = scriptedFetch((url, body: any) => {
-      if (url.endsWith("/.well-known/relic-undertow"))
+      if (url.endsWith("/.well-known/romzo"))
         return new Response(JSON.stringify(DISCOVERY), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -110,10 +110,10 @@ describe("createRoom facade (scripted fetch)", () => {
       turnstileToken: "tok",
     });
     expect(calls.map((c) => c.url)).toEqual([
-      ORIGIN + "/.well-known/relic-undertow",
-      ORIGIN + "/_relic/v1/room-challenges",
-      ORIGIN + "/_relic/v1/rooms",
-      ORIGIN + "/_relic/v1/rooms/ABCD2345EF/confirm",
+      ORIGIN + "/.well-known/romzo",
+      ORIGIN + "/api/v1/room-challenges",
+      ORIGIN + "/api/v1/rooms",
+      ORIGIN + "/api/v1/rooms/ABCD2345EF/confirm",
     ]);
     // Allocate body: request + proof + turnstile.
     expect(Object.keys(allocated).sort()).toEqual(["proof", "request", "turnstile"]);
@@ -124,10 +124,10 @@ describe("createRoom facade (scripted fetch)", () => {
       600000,
     );
     expect(allocated.proof).toBe(
-      await passwordProof(key, "ru/relay-create/v1", allocated.request),
+      await passwordProof(key, "romzo/relay-create/v1", allocated.request),
     );
     expect(allocated.request.configHash).toBe(
-      await hash("ru/lobby-options/v1", OPTIONS),
+      await hash("romzo/lobby-options/v1", OPTIONS),
     );
     expect(canonical(allocated.request.options)).toBe(canonical(OPTIONS));
     // Confirm body: host-signed descriptor, signature verifies.
@@ -137,7 +137,7 @@ describe("createRoom facade (scripted fetch)", () => {
       await verify(
         room.host.publicKey,
         confirm.descriptor,
-        "ru/relay-descriptor/v1",
+        "romzo/relay-descriptor/v1",
         confirm.signature,
       ),
     ).toBe(true);
@@ -154,7 +154,7 @@ describe("createRoom facade (scripted fetch)", () => {
 
   it("requires a password when the relay uses password auth", async () => {
     const { fetch } = scriptedFetch((url) => {
-      if (url.endsWith("/.well-known/relic-undertow"))
+      if (url.endsWith("/.well-known/romzo"))
         return new Response(JSON.stringify(DISCOVERY), { status: 200 });
       throw new Error("unexpected");
     });
