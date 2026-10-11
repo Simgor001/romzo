@@ -6,6 +6,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go ./
+COPY admin ./admin
 COPY LICENSE ./LICENSE
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /relay .
 RUN mkdir -p /licenses && cp LICENSE /licenses/romzo-LICENSE && cp /usr/local/go/LICENSE /licenses/go-LICENSE && cp /usr/local/go/PATENTS /licenses/go-PATENTS && \

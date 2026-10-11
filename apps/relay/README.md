@@ -105,3 +105,95 @@ From the repository root: `npm ci && npm run verify`. Within this directory:
 of truth for the HTTP surface; a contract test checks that it covers every
 endpoint. Shared fixtures under `protocol/` contain public deterministic test
 values; never use them as production secrets.
+
+## Read-only monitoring
+
+`GET /api/v1/metrics` requires an independent persistent `METRICS_KEY` via
+`Authorization: Bearer <key>`. An empty key disables the endpoint (404);
+missing or incorrect credentials return 401, including on loopback.
+`relay init` generates a random 32-byte hexadecimal key along with the other
+secrets. Keep it in a private `.env`, or set `METRICS_KEY_FILE` to a private
+file; do not set both. Existing installations can generate a key with
+`openssl rand -hex 32` and save it once. Configuration is loaded at startup,
+so changing the key requires a restart. Room passwords and ticket keys are separate.
+
+```sh
+curl -H "Authorization: Bearer $METRICS_KEY" https://relay.example.com/api/v1/metrics
+```
+
+Keep the key out of source control, client bundles, URLs and proxy logs.
+Use HTTPS for remote access. Metrics include aggregate counts and authenticated room records; frame and
+byte counters accumulate since process startup. Obtain rates by subtracting
+successive snapshots and dividing by elapsed seconds. The metrics endpoint is read-only; the management page also offers authenticated room shutdown.
+
+### Node status page
+
+Open `/admin/` on the relay origin and enter the same monitoring key. The page
+is embedded in the Go binary, including Docker builds, and uses no external
+assets. It shows aggregate metrics, sampled byte rates, close reasons and the
+last successful update. Refresh runs every five seconds; pause, manual refresh
+and sign out are available. The key stays in page memory only and is cleared
+on reload, page exit or sign out. No browser storage or URL credentials are used.
+An unset `METRICS_KEY` disables both the page and metrics endpoint.
+
+Authenticated room rankings expose room codes and monitoring IDs. Rooms
+include unconfirmed reservations. Inbound counters count authenticated protocol
+frames; outbound counters count frames admitted to the send queue, not confirmed
+delivery. Counters exclude HTTP, WebSocket framing, TCP and TLS overhead.
+These values are operational indicators, not cloud billing usage.
+Health probes (`/healthz`, `/readyz`) and discovery (`/.well-known/romzo`) remain
+public; discovery describes configuration, not current load. The status page
+and authenticated metrics API are two views of the same data.
+
+### Room history and resource limits
+
+The metrics response includes the top ten rooms by total inbound plus outbound
+queued bytes, and the top ten currently connected rooms by cumulative online
+time. Online time starts with monitoring and excludes periods with no connections
+and node downtime. Records contain IDs, room codes, counts, timestamps, a stop reason and optional
+creator IPs; no channel names, options, keys or message bodies.
+Ended rooms are retained for 24 hours. A maximum of 5120 records bounds memory;
+when full, new room allocation fails with 503 until records expire. Unexpired
+quota records are never evicted to make room, so restoration cannot reset limits.
+
+```sh
+METRICS_HISTORY_FILE=.romzo-history/rooms.json
+MAX_ROOM_TRAFFIC_BYTES=1073741824
+MAX_ROOM_AGE_SECONDS=21600
+```
+
+The example allows 1 GiB of combined traffic and six hours since first observation
+per room. Zero disables a limit; existing installations must explicitly configure
+limits. Keep the private history file outside published assets (the suggested
+folder is Git-ignored). With a history file, records are checkpointed every ten
+seconds and on graceful shutdown, using an atomic replacement. A hard crash can
+lose up to one checkpoint interval. Invalid history prevents startup; write
+failures appear in the status page and server stderr. Do not delete history to
+restart a limited room. Without a file, history and quotas are memory-only.
+For Docker, mount a writable directory accessible to UID 65532 and point
+METRICS_HISTORY_FILE there; the root filesystem remains read-only.
+
+A limit cancels all room connections and blocks signed recovery of that room
+while its record remains valid. Creating a different room can still consume
+resources: combine limits with existing per-IP/per-connection rate limits,
+connection caps and creation authorization or Turnstile. The relay cannot infer
+whether opaque messages implement a board game or a traffic tunnel. These
+counters exclude transport overhead and do not enforce cloud billing budgets.
+
+`NODE_OUTBOUND_BYTES_PER_SECOND` caps aggregate enqueued outbound bytes across all
+rooms, with a two-second burst. The deployment example uses 1 MiB/s; zero disables
+it. Queues that exceed it are disconnected and counted as node_outbound_rate.
+Tune it for application resynchronization peaks. Limits default to disabled in
+code for compatibility; copied deployment examples enable them explicitly.
+
+An inbound frame already read can take the room byte counter over its limit by
+one frame; it is not forwarded after the limit check. Keep headroom for transport
+overhead and checkpoint loss when budgeting resources.
+
+### Room controls
+
+`METRICS_KEY` authorizes monitoring and room shutdown. Keep it private. The authenticated page shows room codes and optional creator IPs. `RECORD_CREATOR_IP=false` by default; explicitly enable it to record allocation source IPs. Source addresses follow `TRUSTED_PROXIES` rules. Restoration never substitutes the restorer's IP for an unknown creator.
+
+POST `/api/v1/admin/rooms/stop` with `{"id":"<monitor ID>"}` and `Authorization: Bearer <METRICS_KEY>` disconnects the room and rejects its currently valid restore tickets. This does not ban a user or prevent new rooms. IP filtering belongs to the reverse proxy or VPS firewall.
+
+`METRICS_HISTORY_FILE` persists records and shutdown markers locally. Ended records expire after 24 hours, longer than the 10/30-minute restore leases; without this file they disappear on restart. Shutdown applies immediately. A save failure returns 500 and means restart durability is not guaranteed. Other history updates checkpoint approximately every 10 seconds. Do not commit records or keys, include them in images, or publish them. Enabling IP history requires a user-facing notice of purpose, access and retention. No monitoring data is sent back to the project; creator IP is not proof of identity.

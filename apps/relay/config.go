@@ -13,7 +13,13 @@ import (
 )
 
 type Config struct {
+	NodeOutboundBytesPerSecond                   int
 	Listen, Origin, Auth                         string
+	MetricsHistoryFile                           string
+	RecordCreatorIP                              bool
+	MaxRoomBytes                                 int64
+	MaxRoomSeconds                               int
+	MetricsKey                                   string
 	Salt, TicketKey, Verifier                    []byte
 	TurnstileSecret, TurnstileURL                string
 	ClientOrigins                                []string
@@ -77,6 +83,20 @@ func config() (Config, error) {
 	default:
 		return c, errors.New("invalid CREATE_AUTH")
 	}
+	c.MetricsKey, e = secretEnv("METRICS_KEY")
+	if e != nil {
+		return c, e
+	}
+	if c.MetricsKey != "" {
+		if len(c.MetricsKey) < 32 || len(c.MetricsKey) > 256 {
+			return c, errors.New("METRICS_KEY must contain 32 to 256 printable ASCII characters without spaces")
+		}
+		for _, ch := range c.MetricsKey {
+			if ch < 33 || ch > 126 {
+				return c, errors.New("invalid METRICS_KEY character")
+			}
+		}
+	}
 	c.TurnstileSecret, e = secretEnv("TURNSTILE_SECRET")
 	if e != nil {
 		return c, e
@@ -121,6 +141,23 @@ func config() (Config, error) {
 			return c, errors.New("invalid " + item.name)
 		}
 		*item.target = n
+	}
+	c.RecordCreatorIP, e = strconv.ParseBool(env("RECORD_CREATOR_IP", "false"))
+	if e != nil {
+		return c, errors.New("invalid RECORD_CREATOR_IP")
+	}
+	c.MetricsHistoryFile = os.Getenv("METRICS_HISTORY_FILE")
+	c.MaxRoomBytes, e = strconv.ParseInt(env("MAX_ROOM_TRAFFIC_BYTES", "0"), 10, 64)
+	if e != nil || c.MaxRoomBytes < 0 || c.MaxRoomBytes > 1<<52 {
+		return c, errors.New("invalid MAX_ROOM_TRAFFIC_BYTES")
+	}
+	c.NodeOutboundBytesPerSecond, e = strconv.Atoi(env("NODE_OUTBOUND_BYTES_PER_SECOND", "0"))
+	if e != nil || c.NodeOutboundBytesPerSecond < 0 || c.NodeOutboundBytesPerSecond > 16777216 {
+		return c, errors.New("invalid NODE_OUTBOUND_BYTES_PER_SECOND")
+	}
+	c.MaxRoomSeconds, e = strconv.Atoi(env("MAX_ROOM_AGE_SECONDS", "0"))
+	if e != nil || c.MaxRoomSeconds < 0 || c.MaxRoomSeconds > 31536000 {
+		return c, errors.New("invalid MAX_ROOM_AGE_SECONDS")
 	}
 	return c, nil
 }

@@ -11,6 +11,7 @@ import (
 )
 
 type Peer struct {
+	limitReason             string
 	id, key                 string
 	conn                    *websocket.Conn
 	queue                   chan []byte
@@ -36,8 +37,17 @@ type Frame struct {
 
 func (s *Server) enqueueLocked(p *Peer, v any) bool {
 	b := wire(v)
+	if p.room != nil && s.roomLimitLocked(p.room, int64(len(b))) {
+		return false
+	}
 	if len(p.queue) >= 128 || p.bytes+len(b) > 1024*1024 || s.queued+len(b) > 64*1024*1024 {
 		s.queueRejected++
+		p.stop.Do(p.cancel)
+		return false
+	}
+	if rate := s.cfg.NodeOutboundBytesPerSecond; rate > 0 && !s.allowCostLocked("outbound-global", float64(rate), float64(rate)*2, float64(len(b))) {
+		s.queueRejected++
+		p.limitReason = "node_outbound_rate"
 		p.stop.Do(p.cancel)
 		return false
 	}
@@ -45,6 +55,9 @@ func (s *Server) enqueueLocked(p *Peer, v any) bool {
 	s.queued += len(b)
 	s.sentFrames++
 	s.sentBytes += int64(len(b))
+	if p.room != nil {
+		s.monitor.records[p.room.MonitorID].SentBytes += int64(len(b))
+	}
 	p.queue <- b
 	return true
 }
@@ -140,7 +153,9 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		return
 	}
+	s.sampleRoomLocked(room)
 	room.Peers[p.id] = p
+	s.sampleRoomLocked(room)
 	authenticated = true
 	closeReason = "transport_closed_or_idle"
 	s.unauthenticated--
@@ -148,7 +163,15 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
+		if p.limitReason != "" {
+			closeReason = p.limitReason
+		}
+		if record := s.monitor.records[room.MonitorID]; record != nil && record.StopReason != "" {
+			closeReason = record.StopReason
+		}
+		s.sampleRoomLocked(room)
 		delete(room.Peers, p.id)
+		s.sampleRoomLocked(room)
 		for _, other := range room.Peers {
 			for channel := range p.channels {
 				if other.channels[channel] {
@@ -212,8 +235,13 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		p.byteTokens = min(float64(s.cfg.BytesPerSecond*2), p.byteTokens+elapsed*float64(s.cfg.BytesPerSecond))
 		p.rateAt = now
 		size := frameBytes
+		s.monitor.records[room.MonitorID].ReceivedBytes += int64(size)
 		s.receivedFrames++
 		s.receivedBytes += int64(size)
+		if s.roomLimitLocked(room, 0) {
+			s.mu.Unlock()
+			return
+		}
 		if p.frameTokens < 1 || p.byteTokens < float64(size) || !s.allowCostLocked("ws-bytes/"+s.clientIP(r), float64(s.cfg.IPBytesPerSecond), float64(s.cfg.IPBytesPerSecond*2), float64(size)) {
 			closeReason = "frame_or_byte_rate"
 			s.mu.Unlock()

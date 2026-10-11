@@ -10,3 +10,13 @@
 !protocol.go
 !server.go
 !websocket.go
+
+!admin.go
+!admin/
+!admin/index.html
+!admin/style.css
+!admin/app.js
+
+!monitor.go
+
+!moderation.go

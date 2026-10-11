@@ -15,7 +15,7 @@ import (
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "init" {
-		fmt.Printf("CREATE_AUTH=password\nCREATE_PASSWORD=%s\nAUTH_SALT=%s\nTICKET_KEY=%s\n", randomHex(24), randomHex(32), randomHex(32))
+		fmt.Printf("CREATE_AUTH=password\nCREATE_PASSWORD=%s\nAUTH_SALT=%s\nTICKET_KEY=%s\nMETRICS_KEY=%s\n", randomHex(24), randomHex(32), randomHex(32), randomHex(32))
 		return
 	}
 	if len(os.Args) == 2 && os.Args[1] == "rotate-password" {
@@ -41,6 +41,10 @@ func main() {
 		os.Exit(1)
 	}
 	s := newServer(c)
+	if e = s.loadHistory(); e != nil {
+		fmt.Fprintln(os.Stderr, e)
+		os.Exit(1)
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	go func() {
@@ -54,11 +58,18 @@ func main() {
 				s.mu.Lock()
 				s.sweepLocked()
 				s.mu.Unlock()
+				if tickTime := time.Now(); tickTime.Unix()%10 == 0 {
+					if e := s.saveHistory(); e != nil {
+						fmt.Fprintln(os.Stderr, e)
+					}
+				}
 			}
 		}
 	}()
-	h := &http.Server{Addr: c.Listen, Handler: s, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
+	h := &http.Server{Addr: c.Listen, Handler: withHSTS(s), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		shutdown, done := context.WithTimeout(context.Background(), 5*time.Second)
 		defer done()
@@ -70,13 +81,27 @@ func main() {
 		}
 		s.mu.Unlock()
 		_ = h.Shutdown(shutdown)
+		if e := s.saveHistory(); e != nil {
+			fmt.Fprintln(os.Stderr, e)
+		}
 	}()
 	fmt.Fprintln(os.Stderr, "romzo relay ready")
 	if e = h.ListenAndServe(); e != nil && e != http.ErrServerClosed {
 		fmt.Fprintln(os.Stderr, "listen failed")
 		os.Exit(1)
 	}
+	<-shutdownDone
 }
+
+// withHSTS pins HTTPS-only access for browsers; over plain HTTP the header
+// is ignored, so loopback development is unaffected.
+func withHSTS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func loadEnv(path string) error {
 	f, e := os.Open(path)
 	if e != nil {
