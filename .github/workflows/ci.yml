@@ -1,5 +1,10 @@
 name: Verify Romzo
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -23,9 +28,136 @@ jobs:
       - run: npm run verify
       - run: git diff --exit-code
       - run: git diff --check
+      - name: Retain verified relay binaries
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-binaries
+          path: dist/relay/
+          if-no-files-found: error
+          retention-days: 14
   docker:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f deploy/Dockerfile -t romzo-ci relay
       - run: docker run --rm romzo-ci -version
+  release:
+    needs: [verify, docker]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release tag against server version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^const version = "\([^"]*\)"$/\1/p' relay/protocol.go)
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$RELEASE_TAG" = "v$version"
+      - uses: actions/download-artifact@v4
+        with:
+          name: relay-binaries
+          path: dist/relay
+      - name: Check binaries and package license notices
+        working-directory: dist/relay
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS
+          chmod +x romzo-relay-linux-amd64
+          test "$(./romzo-relay-linux-amd64 -version)" = "${RELEASE_TAG#v}"
+          tar -czf relay-licenses.tar.gz LICENSE NOTICE THIRD_PARTY_NOTICES.txt licenses
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Resolve image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Prepare draft binary release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft > release-state.json 2>/dev/null; then
+            test "$(jq -r .isDraft release-state.json)" = true
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Romzo $RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" --clobber \
+            dist/relay/romzo-relay-linux-amd64 \
+            dist/relay/romzo-relay-linux-arm64 \
+            dist/relay/romzo-relay-windows-amd64.exe \
+            dist/relay/SHA256SUMS dist/relay/relay-licenses.tar.gz
+      - name: Publish multi-platform image
+        uses: docker/build-push-action@v7
+        with:
+          context: relay
+          file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=Apache-2.0
+      - name: Publish binary release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$RELEASE_TAG" --draft=false
+  npm:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/client-v')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: npm-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+      - name: Check tag against SDK version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./packages/romzo-client/package.json').version")
+          test "$GITHUB_REF_NAME" = "client-v$version"
+      - run: npm ci
+      - run: npm run verify
+      - name: Publish SDK to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish -w romzo --access public
+  deploy:
+    needs: [verify, docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy static site to romzo.net origin
+        env:
+          DEPLOY_KEY: ${{ secrets.ROMZO_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p REDACTED-PORT REDACTED-HOST >> ~/.ssh/known_hosts
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key -p REDACTED-PORT -o BatchMode=yes" \
+            website/ ubuntu@REDACTED-HOST:REDACTED-SITE-PATH/
