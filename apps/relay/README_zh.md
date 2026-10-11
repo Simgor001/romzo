@@ -16,7 +16,7 @@ relay init > .env.secrets
 3. 设置 `PUBLIC_ORIGIN` 与 `CLIENT_ORIGINS`。
 4. 运行 `relay --env-file .env`。环境文件已被 Git 忽略。
 
-服务端以 HTTP/WS 形式运行在 TLS 反向代理之后；除显式回环开发外，PUBLIC_ORIGIN 必须是规范的 HTTPS 源站。不要把未加密监听口暴露到公网。`relay -version` 报告 1.2.0。
+服务端以 HTTP/WS 形式运行在 TLS 反向代理之后；除显式回环开发外，PUBLIC_ORIGIN 必须是规范的 HTTPS 源站。不要把未加密监听口暴露到公网。`relay -version` 报告 1.3.0。
 
 ## 配置
 
@@ -85,7 +85,7 @@ options：
 
 出站扇出带宽不受此限。
 
-服务端 1.2.0 使用线上协议 `romzo/v1`。多实例路由与故障迁移仅靠恢复票据不够。
+服务端 1.3.0 使用线上协议 `romzo/v1`。多实例路由与故障迁移仅靠恢复票据不够。
 
 ## 验证
 

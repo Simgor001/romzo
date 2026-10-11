@@ -4,7 +4,7 @@ English: [FRAMES.md](FRAMES.md)
 
 本文档是 `apps/relay` WebSocket 面的规范，与 HTTP 面的 OpenAPI 文档（`openapi.yaml`）互补。第三方客户端实现应以本文档 + 共享测试向量（`protocol/relay-v1-vectors.json`）为准，不需要阅读服务端源码。
 
-服务端发行版本为 **1.2.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。
+服务端发行版本为 **1.3.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。1.3.0 起频道集合改为声明式：建房 options 可携带 `channels` 列表，取代此前硬编码的 `discovery` / `lobby` / `game` 三名字与按名分档的帧上限（见下文「频道」）。options 不带 `channels` 时行为与旧版完全一致。
 
 ## 邀请链接与房间配置
 
@@ -15,6 +15,25 @@ fragment 不进入 HTTP 请求，客户端解析后通过 `history.replaceState`
 只有明确启用的本地开发环境允许 HTTP 回环中继（localhost、127.0.0.1、[::1]）；生产页面不能把省略 scheme 的邀请解释为远程 HTTP。应用侧负责旧邀请兼容、开发地址覆盖及浏览器历史恢复；SDK 纯函数只处理标准邀请格式。
 
 descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类型；UTF-8 原始 JSON 上限由 `MAX_OPTIONS_BYTES` 指定，默认和最大 4096 字节。现有 canonical 协议只允许安全整数，不能包含小数或超出 JavaScript 安全整数范围的数。服务端核对 configHash，但不解释 players、阵营、计分或 lifecycle；应用必须在申请 admission 前验证自己的规则。
+
+## 频道
+
+房间的频道集合在建房 `options` 的 `channels` 键下声明，至多 8 条，每条形如
+`{"name": "table", "maxFrameBytes": 262144}`：
+
+- `name` 须匹配 `^[a-z][a-z0-9-]{0,31}$`，且不可重复；
+- `maxFrameBytes` 是该频道 `send` 负载的逐频道上限，取值 256 – 262144（256 KiB）字节（含边界）；
+- 声明非法（名字非法、重名、超过 8 个、数值越界）时建房失败并返回 `invalid_allocation`。
+
+options 不带 `channels` 时保留 1.3.0 之前的兼容默认：
+
+| 频道 | send 负载上限 |
+| --- | --- |
+| `discovery` | 16 KiB |
+| `lobby` | 16 KiB |
+| `game` | 256 KiB |
+
+中继对频道保持零知识：只校验名字语法与数值边界，不理解语义。声明存放在 `options` 里，`configHash` 天然保证同房所有 peer 认同同一份声明。发送时以频道声明的 `maxFrameBytes` 取代旧的按名分档；全局 256 KiB 负载上限仍是绝对上界。
 
 ## 连接与传输
 
@@ -44,9 +63,9 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 
 | kind | 字段 | 语义 |
 |---|---|---|
-| `subscribe` | `channel` | 订阅 `discovery` / `lobby` / `game` 之一。订阅成功后收到同频道其他成员的 `join`，自己向他人广播 `join` |
+| `subscribe` | `channel` | 订阅房间 options 声明的频道（options 未声明时为兼容默认名）。订阅成功后收到同频道其他成员的 `join`，自己向他人广播 `join` |
 | `unsubscribe` | `channel` | 退订；向同频道他人广播 `leave` |
-| `send` | `channel`, `value`, `target?` | 转发 `value`（任意 JSON）给同频道成员；`target` 缺省为广播，`target` 必须是已订阅该频道的其他 peer。`value` 在 `game` 频道 ≤ 256 KiB，其余频道 ≤ 16 KiB |
+| `send` | `channel`, `value`, `target?` | 转发 `value`（任意 JSON）给同频道成员；`target` 缺省为广播，`target` 必须是已订阅该频道的其他 peer。`value` 必须非空且不超出该频道声明的 `maxFrameBytes`（见「频道」） |
 | `keepalive` | — | 续约房间活性（必须先有订阅）；应答中携带新恢复票据 |
 
 ## 服务端帧
@@ -66,8 +85,8 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 |---|---|
 | `invalid_frame_fields` | 缺 `id`、携带 `admission`/`signature`、非 send 帧超 16 KiB 等 |
 | `invalid_target_encoding` | `target` 不是非空字符串 |
-| `invalid_channel` | 订阅未知频道 |
-| `message_bound_or_unsubscribed` | 向未订阅频道发送、负载为空或超大小上限 |
+| `invalid_channel` | 订阅了房间未声明的频道 |
+| `message_bound_or_unsubscribed` | 向未订阅频道发送、负载为空或超出该频道声明的上限 |
 | `keepalive_without_subscription` | 无订阅时发送 keepalive |
 | `unknown_frame_kind` | 其他未知 kind |
 | `frame_or_byte_rate` | 触发每连接帧率/字节率或每 IP 聚合字节率限制 |

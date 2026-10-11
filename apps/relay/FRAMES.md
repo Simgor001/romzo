@@ -7,9 +7,14 @@ complements the OpenAPI document (`openapi.yaml`) for the HTTP surface.
 Third-party client implementations can follow this document and the shared
 test vectors (`protocol/relay-v1-vectors.json`) alone.
 
-Server release is **1.2.0**; the public wire protocol is **romzo/v1**.
+Server release is **1.3.0**; the public wire protocol is **romzo/v1**.
 HTTP routes use `/api/v1/`, WebSocket uses `/ws`, and cryptographic domains
 use the `romzo/` prefix. Clients and servers must use the same protocol.
+Release 1.3.0 makes the channel set declarative: allocation options may
+carry a `channels` list, replacing the previously hardcoded
+`discovery` / `lobby` / `game` names and per-name frame tiers (see
+Channels below). Options without `channels` keep the old behavior
+unchanged.
 
 ## Invite links and room configuration
 
@@ -20,6 +25,33 @@ The fragment never enters the HTTP request; the client parses it, clears it via 
 Only explicitly enabled local development may use an HTTP loopback relay (localhost, 127.0.0.1, [::1]); production pages must not interpret a scheme-less invite as remote HTTP. Applications handle legacy invite compatibility, development address overrides and browser-history recovery; the SDK pure functions cover only the standard invite format.
 
 The descriptor `options` are opaque canonical JSON, allowing any JSON root type; the UTF-8 raw JSON cap is `MAX_OPTIONS_BYTES`, default and maximum 4096 bytes. The frozen canonical protocol allows only safe integers — no decimals, no numbers outside the JavaScript safe-integer range. The server checks configHash but does not interpret players, factions, scoring or lifecycle; the application must validate its own rules before requesting admission.
+
+## Channels
+
+The room's channel set is declared in the allocation `options` under
+`"channels"`, as up to 8 entries of
+`{"name": "table", "maxFrameBytes": 262144}`:
+
+- `name` matches `^[a-z][a-z0-9-]{0,31}$`; entries must not repeat.
+- `maxFrameBytes` is the per-channel `send` payload limit, between 256 and
+  262144 (256 KiB) bytes inclusive.
+- A malformed declaration — bad name, duplicate, more than 8 entries, or an
+  out-of-range limit — fails allocation with `invalid_allocation`.
+
+Options with no `channels` key keep the pre-1.3.0 compatibility defaults:
+
+| channel | send payload limit |
+| --- | --- |
+| `discovery` | 16 KiB |
+| `lobby` | 16 KiB |
+| `game` | 256 KiB |
+
+The relay is zero-knowledge about channels: it validates only name syntax
+and numeric bounds and never interprets meaning. Because the declaration
+lives in `options`, `configHash` binds every peer of the room to the same
+channel set. Each channel's declared `maxFrameBytes` replaces the old
+per-name tiers when sending; the global 256 KiB payload limit remains the
+absolute upper bound.
 
 ## Connection and transport
 
@@ -49,9 +81,9 @@ Common fields: `id` is a required non-empty response-correlation ID of ≤64 cha
 
 | kind | fields | semantics |
 |---|---|---|
-| `subscribe` | `channel` | Subscribe to one of `discovery` / `lobby` / `game`. On success you receive `join` for existing channel members and broadcast `join` to them |
+| `subscribe` | `channel` | Subscribe to a channel declared in the room options (a compatibility default name if the options declare none). On success you receive `join` for existing channel members and broadcast `join` to them |
 | `unsubscribe` | `channel` | Unsubscribe; broadcasts `leave` to other channel members |
-| `send` | `channel`, `value`, `target?` | Forward `value` (any JSON) to channel members; `target` defaults to broadcast and must be another peer subscribed to that channel. `value` is ≤ 256 KiB on `game`, ≤ 16 KiB on other channels |
+| `send` | `channel`, `value`, `target?` | Forward `value` (any JSON) to channel members; `target` defaults to broadcast and must be another peer subscribed to that channel. `value` must be non-empty and within the channel's declared `maxFrameBytes` (see Channels) |
 | `keepalive` | — | Renew room liveness (requires an active subscription); the response carries a new recovery ticket |
 
 ## Server frames
@@ -71,8 +103,8 @@ Common fields: `id` is a required non-empty response-correlation ID of ≤64 cha
 |---|---|
 | `invalid_frame_fields` | missing `id`, carrying `admission`/`signature`, non-send frame over 16 KiB, etc. |
 | `invalid_target_encoding` | `target` is not a non-empty string |
-| `invalid_channel` | subscribing to an unknown channel |
-| `message_bound_or_unsubscribed` | sending to an unsubscribed channel, empty payload or payload over the size cap |
+| `invalid_channel` | subscribing to a channel the room did not declare |
+| `message_bound_or_unsubscribed` | sending to an unsubscribed channel, empty payload or payload over the channel's declared limit |
 | `keepalive_without_subscription` | keepalive without a subscription |
 | `unknown_frame_kind` | any other unknown kind |
 | `frame_or_byte_rate` | per-connection frame/byte rate or per-IP aggregate byte rate limit hit |

@@ -4,7 +4,7 @@ English: [README.md](README.md)
 
 基于房间（room）的不透明 WebSocket 中继，附带零运行时依赖的 TypeScript SDK。中继负责房间注册、签名票据（ticket）、频道（channel）成员管理与有界转发；加密、游戏规则、持久化、重连与历史同步由应用负责。
 
-服务端版本：**1.2.0**。SDK：**@romzo/client 0.2.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
+服务端版本：**1.3.0**。SDK：**@romzo/client 0.2.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
 
 ## 组件
 
@@ -31,14 +31,18 @@ npm run verify
 import { createRoom, buildInviteLink, RelaySession } from '@romzo/client';
 
 const room = await createRoom('https://relay.example.com', {
-  game: 'example', players: 2, rules: ['draft']
+  game: 'example', players: 2, rules: ['draft'],
+  channels: [
+    { name: 'table', maxFrameBytes: 262144 },
+    { name: 'chat', maxFrameBytes: 16384 },
+  ],
 }, { password: creationPassword });
 const invite = buildInviteLink(room.descriptor.origin, room.descriptor.code,
   'https://client.example.com/');
 const session = await RelaySession.connect(
   room.descriptor.origin.replace(/^http/, 'ws') + '/ws',
   room.admission, room.transport);
-await session.subscribe('game');
+await session.subscribe('table');
 ```
 
 在本工作区用 `npm run build` 构建 SDK。
@@ -52,6 +56,7 @@ await session.subscribe('game');
 | 限制 | 默认值 | 说明 |
 | --- | --- | --- |
 | options 大小 | 至多 4096 UTF-8 字节（可配置为更低） | 不透明 canonical JSON。应用须在申请 admission 前自行校验规则。 |
+| 频道 | 在 options 中声明，至多 8 个 | 形如 `{"name": "table", "maxFrameBytes": 262144}`；未声明时使用兼容默认 `discovery`/`lobby`/`game`（send 上限 16 KiB/16 KiB/256 KiB）。 |
 | 帧投递 | 至多一次 | 发送应答（ack）不代表接收方已应用操作。 |
 | 重连 | — | SDK 不自动重连。 |
 

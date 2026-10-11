@@ -7,7 +7,7 @@ The relay handles room registration, signed tickets, channel membership and
 bounded forwarding. Applications own encryption, game rules, persistence,
 reconnection and history synchronization.
 
-Server release: **1.2.0**. SDK: **@romzo/client 0.2.0**. Wire protocol:
+Server release: **1.3.0**. SDK: **@romzo/client 0.2.0**. Wire protocol:
 **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
@@ -35,14 +35,18 @@ In a browser client, after obtaining a creation password from the user:
 import { createRoom, buildInviteLink, RelaySession } from '@romzo/client';
 
 const room = await createRoom('https://relay.example.com', {
-  game: 'example', players: 2, rules: ['draft']
+  game: 'example', players: 2, rules: ['draft'],
+  channels: [
+    { name: 'table', maxFrameBytes: 262144 },
+    { name: 'chat', maxFrameBytes: 16384 },
+  ],
 }, { password: creationPassword });
 const invite = buildInviteLink(room.descriptor.origin, room.descriptor.code,
   'https://client.example.com/');
 const session = await RelaySession.connect(
   room.descriptor.origin.replace(/^http/, 'ws') + '/ws',
   room.admission, room.transport);
-await session.subscribe('game');
+await session.subscribe('table');
 ```
 
 Build the SDK from this workspace with `npm run build`.
@@ -60,6 +64,7 @@ relay origins require HTTPS.
 | Limit | Default | Notes |
 | --- | --- | --- |
 | Options payload | at most 4096 UTF-8 bytes (configurable lower) | Opaque canonical JSON. Applications validate their own rules before obtaining admission. |
+| Channels | declared in options, up to 8 | `{"name": "table", "maxFrameBytes": 262144}` entries; undeclared rooms keep the compatibility defaults `discovery`/`lobby`/`game` (16 KiB/16 KiB/256 KiB send limits). |
 | Frame delivery | at most once | Send acknowledgments do not confirm that recipients applied an operation. |
 | Reconnection | — | The SDK does not automatically reconnect. |
 
