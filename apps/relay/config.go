@@ -24,7 +24,7 @@ type Config struct {
 }
 
 func config() (Config, error) {
-	c := Config{Listen: env("LISTEN", ":8080"), Origin: os.Getenv("PUBLIC_ORIGIN"), Auth: env("CREATE_AUTH", "password")}
+	c := Config{Listen: env("LISTEN", ":9224"), Origin: os.Getenv("PUBLIC_ORIGIN"), Auth: env("CREATE_AUTH", "password")}
 	u, e := url.Parse(c.Origin)
 	if e != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || (u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1"))) {
 		return c, errors.New("PUBLIC_ORIGIN must be a canonical HTTPS origin (HTTP only on loopback)")
