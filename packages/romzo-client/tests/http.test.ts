@@ -5,6 +5,7 @@ import {
   allocate,
   confirmRoom,
   discover,
+  normalizeOrigin,
   RelayHttpError,
   requestAdmission,
   restoreRoom,
@@ -211,5 +212,46 @@ describe("HTTP face (fake fetch)", () => {
   it("generates key pairs compatible with the wire format", async () => {
     const identity = await generateKeyPair();
     expect(identity.publicKey).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("discovers against a bare host by defaulting to https", async () => {
+    const { fetch, calls } = fakeFetch([() => json(DISCOVERY)]);
+    const info = await discover("relay.example", { fetch });
+    expect(info.auth).toBe("password");
+    expect(calls[0].url).toBe(ORIGIN + "/.well-known/romzo");
+  });
+
+  it("rejects a discovery document that does not match the normalized origin", async () => {
+    const { fetch } = fakeFetch([
+      () => json({ ...DISCOVERY, origin: "https://relay.example:8443" }),
+    ]);
+    await expect(discover("relay.example", { fetch })).rejects.toMatchObject({
+      code: "protocol_mismatch",
+    });
+  });
+});
+
+describe("normalizeOrigin", () => {
+  it("defaults bare hosts to https", () => {
+    expect(normalizeOrigin("romzo.net")).toBe("https://romzo.net");
+    expect(normalizeOrigin("romzo.net:9224")).toBe("https://romzo.net:9224");
+  });
+
+  it("defaults loopback hosts to http", () => {
+    expect(normalizeOrigin("localhost:9224")).toBe("http://localhost:9224");
+    expect(normalizeOrigin("127.0.0.1:9224")).toBe("http://127.0.0.1:9224");
+    expect(normalizeOrigin("[::1]:9224")).toBe("http://[::1]:9224");
+  });
+
+  it("keeps an explicit scheme and strips trailing slashes", () => {
+    expect(normalizeOrigin("https://romzo.net/")).toBe("https://romzo.net");
+    expect(normalizeOrigin("http://localhost:9224/")).toBe("http://localhost:9224");
+  });
+
+  it("drops default ports and rejects malformed input", () => {
+    expect(normalizeOrigin("https://romzo.net:443")).toBe("https://romzo.net");
+    expect(() => normalizeOrigin("")).toThrow(RangeError);
+    expect(() => normalizeOrigin("https://romzo.net/x")).toThrow(RangeError);
+    expect(() => normalizeOrigin("https://romzo.net?q=1")).toThrow(RangeError);
   });
 });

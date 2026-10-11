@@ -1,4 +1,4 @@
-# @romzo/client
+# romzo
 
 中文：[README_zh.md](README_zh.md)
 
@@ -20,8 +20,10 @@ against the shared test vectors in `protocol/relay-v1-vectors.json`.
 
 ## Create → confirm → connect (host)
 
+The relay origin may be written with or without the scheme: bare hosts default to https, loopback hosts to http.
+
 ```ts
-import { createRoom, RelaySession } from "@romzo/client";
+import { createRoom, RelaySession } from "romzo";
 
 const roomOptions = {
   players: 4,
@@ -30,7 +32,7 @@ const roomOptions = {
     { name: "chat", maxFrameBytes: 16384 },
   ],
 };
-const room = await createRoom("https://relay.example", roomOptions, {
+const room = await createRoom("relay.example", roomOptions, {
   password: creationPassword,        // required when the relay uses password auth
   turnstileToken: turnstileToken,    // required when Discovery.turnstile is true
 });
@@ -57,9 +59,9 @@ error `message_bound_or_unsubscribed`.
 ## Guest join
 
 ```ts
-import { joinRoom, RelaySession } from "@romzo/client";
+import { joinRoom, RelaySession } from "romzo";
 
-const joined = await joinRoom("https://relay.example", "ABCD2345EF");
+const joined = await joinRoom("relay.example", "ABCD2345EF");
 const url = joined.signedDescriptor.descriptor.origin.replace(/^http/, "ws") + "/ws";
 const session = await RelaySession.connect(url, joined.admission, joined.transport);
 await session.subscribe("table");
@@ -68,7 +70,7 @@ await session.subscribe("table");
 ## Invites
 
 ```ts
-import { buildInviteLink, parseInviteHash } from "@romzo/client";
+import { buildInviteLink, parseInviteHash } from "romzo";
 const link = buildInviteLink("https://romzo.net:9224", "ABCD123XYZ", "https://game.example.com/");
 // https://game.example.com/#ABCD123XYZ@romzo.net
 const address = parseInviteHash(new URL(link).hash);
@@ -84,7 +86,7 @@ The functions do not read or write the DOM or history. After consuming an invite
 Keepalive responses update `session.currentRecovery()` automatically (it can also be persisted via the `onRecovery` callback). Recovery flow:
 
 ```ts
-import { restoreSession, RelaySession } from "@romzo/client";
+import { restoreSession, RelaySession } from "romzo";
 
 const restored = await restoreSession(saved.signedDescriptor, saved.recovery, saved.transport);
 const session = await RelaySession.connect(wsUrl, restored.admission, restored.transport);
@@ -100,16 +102,16 @@ Non-browser applications must still send a WebSocket Origin matching the server'
 | `canonical` | `canonical()`, `hash(domain, v)`, `mac(key, domain, v)`, hex utilities (byte-compatible with the Go implementation) |
 | `crypto` | Ed25519 key generation/import/export, `sign`/`verify`, PBKDF2 password derivation (600000 iterations), `passwordProof` |
 | `http` | `discover`, `createChallenge`, `allocate`, `confirmRoom`, `requestAdmission`, `fetchDescriptor`, `restoreRoom`; all support injected `fetch`, errors throw `RelayHttpError(code, status)` |
-| `session` | `RelaySession.connect(url, admission, identity, opts)`: four-frame handshake, `subscribe`/`unsubscribe`/`send`/`keepalive`, event subscription, automatic keepalive (can be disabled), `currentRecovery()`; injectable WebSocket factory |
+| `session` | `RelaySession.connect(url, admission, identity, opts)`: four-frame handshake, `subscribe`/`unsubscribe`/`send`/`keepalive`, event subscription, automatic keepalive (can be disabled), `currentRecovery()`, opt-in automatic reconnection (`autoReconnect`, resubscribes tracked channels, emits `reconnect`/`reconnecting`); injectable WebSocket factory |
 | facade | `createRoom()` / `joinRoom()` / `restoreSession()` wrap the full HTTP sequence |
 
 ## Tests
 
 ```sh
 npm install
-npm run check -w @romzo/client   # tsc --noEmit
-npm test -w @romzo/client        # vitest (includes shared-vector contract tests, no real network)
-npm run build -w @romzo/client
+npm run check -w romzo   # tsc --noEmit
+npm test -w romzo        # vitest (includes shared-vector contract tests, no real network)
+npm run build -w romzo
 ```
 
 ## Requests, validation and caching
@@ -119,7 +121,7 @@ The HTTP primitives and the exported `relayRequest(origin, path, body?, options?
 `joinRoom` runs `verifyDescriptor` before requesting admission: field whitelist, origin/code, configHash and the host Ed25519 signature. `createRoom` also validates the descriptor before confirming. Supply application rules via the `validateOptions` callback; the SDK does not interpret board-game options. A signature proves the descriptor was signed by the host key it carries; confirming who is behind an invite still requires a trusted channel.
 
 ```ts
-import { createPasswordKeyCache, createRoom } from "@romzo/client";
+import { createPasswordKeyCache, createRoom } from "romzo";
 const passwordKeyProvider = createPasswordKeyCache(creationPassword);
 const room = await createRoom(origin, options, { passwordKeyProvider, validateOptions });
 // password change: clear() and discard the old instance, create one bound to the new password
@@ -130,7 +132,11 @@ The cache belongs to a single password instance, keyed by origin, salt and itera
 
 ## Session and private-key responsibilities
 
-The SDK keepalives every 10 seconds by default; the application should subscribe promptly, since keepalive without a subscription is rejected by the server. The handshake rejects out-of-order frames, duplicate challenges and origin/ticket binding mismatches; handshake frames after authentication, invalid JSON, binary frames or a version error close the session and reject pending requests. The SDK does not reconnect automatically; the caller handles reconnection, resubscription and history sync.
+The SDK keepalives every 10 seconds by default; the application should subscribe promptly, since keepalive without a subscription is rejected by the server. The handshake rejects out-of-order frames, duplicate challenges and origin/ticket binding mismatches; handshake frames after authentication, invalid JSON, binary frames or a version error close the session and reject pending requests.
+
+Automatic reconnection is opt-in, via `autoReconnect: { signedDescriptor, maxAttempts?, baseDelayMs?, maxDelayMs? }` on `RelaySession.connect` (`signedDescriptor` is required; omitting it throws). When enabled, a transport drop or a terminal error frame starts a reconnect loop instead of closing the session. Each attempt trades the latest `currentRecovery()` ticket plus the configured signed descriptor for a fresh admission ticket through `restoreSession`, re-handshakes, automatically re-subscribes the channels the session had subscribed to, and emits `reconnect` with `{ attempt }`. Delays grow exponentially from `baseDelayMs` (default 1000 ms) up to `maxDelayMs` (default 15000 ms) with ±20% jitter, for at most `maxAttempts` attempts (default 8); every scheduled attempt emits `reconnecting` with `{ attempt, delayMs, error }` for observability. `close` is emitted only after every attempt has failed — or right after a manual `close()`. While a reconnect is in progress, `send`/`subscribe` reject immediately with a reconnecting error instead of hanging, and the keepalive timer is paused until the session is restored. Without `autoReconnect` the behavior is unchanged: a drop or terminal error closes the session and emits `close` immediately, and the caller handles reconnection, resubscription and history sync.
+
+Even with `autoReconnect` enabled, the application still owns envelope-layer history synchronization: the SDK restores transport and channel membership but does not detect gaps, deduplicate or backfill messages (delivery is at-most-once; see FRAMES.md). Persist the recovery ticket via `onRecovery`/`currentRecovery()` and the signed descriptor with the same care as private keys.
 
 Private keys from `generateKeyPair()` and `importKeyPair()` are **extractable**, for export and recovery. Exported private-key values, passwords and recovery tickets must never appear in invite URLs, telemetry, logs or public test artifacts; the application chooses protected persistence and a clearing policy. Callers may supply compatible non-extractable CryptoKeys, but those cannot be exported with `exportPrivateKey` for recovery.
 

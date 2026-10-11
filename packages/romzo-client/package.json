@@ -1,5 +1,5 @@
 {
-  "name": "@romzo/client",
+  "name": "romzo",
   "version": "0.2.0",
   "description": "Romzo \u2014 client SDK for a room-based opaque WebSocket relay (romzo/v1). Zero runtime dependencies.",
   "type": "module",

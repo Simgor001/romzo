@@ -39,6 +39,27 @@ export class RelayHttpError extends Error {
   }
 }
 
+const loopbackHosts = ["localhost", "127.0.0.1", "::1"];
+
+/**
+ * Canonicalize a relay origin. A bare host (`romzo.net`, `romzo.net:9224`)
+ * defaults to https, loopback hosts default to http; an explicit scheme is
+ * kept as written. Trailing slashes are stripped. Throws on garbage input.
+ */
+export function normalizeOrigin(origin: string): string {
+  const value = origin.trim().replace(/\/+$/, "");
+  if (!value) throw new RangeError("invalid relay origin");
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value
+    : (loopbackHosts.includes(
+        (value.startsWith("[") ? value.slice(1, value.indexOf("]"))
+          : value.split(":")[0]).toLowerCase(),
+      ) ? "http://" : "https://") + value;
+  const url = new URL(withScheme);
+  if (url.username || url.password || url.search || url.hash ||
+      url.pathname !== "/") throw new RangeError("invalid relay origin");
+  return url.origin;
+}
+
 function resolveFetch(options?: HttpOptions): FetchLike {
   const f = options?.fetch ?? globalThis.fetch;
   if (!f) throw new Error("no fetch implementation available");
@@ -71,6 +92,7 @@ export async function relayRequest<T>(
       !Number.isSafeInteger(maxBytes) || maxBytes < 1)
     throw new RangeError("invalid HTTP request limits");
   const fetch = resolveFetch(options);
+  origin = normalizeOrigin(origin);
   for (let attempt = 0; ; attempt++) {
     options?.signal?.throwIfAborted();
     const controller = new AbortController();
@@ -128,13 +150,14 @@ export async function discover(
   origin: string,
   options?: HttpOptions,
 ): Promise<Discovery> {
+  const base = normalizeOrigin(origin);
   const v = await relayRequest<Discovery>(
-    origin,
+    base,
     DISCOVERY_PATH,
     undefined,
     options,
   );
-  if (v.origin !== origin || v.protocol !== PROTOCOL)
+  if (v.origin !== base || v.protocol !== PROTOCOL)
     throw new RelayHttpError("protocol_mismatch", 400);
   if (
     v.algorithm !== "PBKDF2-HMAC-SHA256" ||
