@@ -212,7 +212,7 @@ components:
                     type: integer
             type: object
         Options:
-            description: Opaque canonical JSON, at most MAX_OPTIONS_BYTES UTF-8 bytes (default and maximum 4096). Safe integers only; application rules are validated by clients. Any JSON root type is permitted.
+            description: Opaque canonical JSON, at most MAX_OPTIONS_BYTES UTF-8 bytes (default and maximum 4096). Safe integers only; application rules are validated by clients. Any JSON root type is permitted. An object value may declare the room's channels under "channels" — up to 8 entries of {"name": "table", "maxFrameBytes": 262144} with unique names matching ^[a-z][a-z0-9-]{0,31}$ and limits between 256 and 262144 bytes; a malformed declaration fails allocation with invalid_allocation. Options without "channels" keep the compatibility defaults discovery/lobby/game at 16 KiB/16 KiB/256 KiB per-channel send limits; see FRAMES.md.
             nullable: true
         Ready:
             properties:
@@ -313,7 +313,7 @@ components:
 info:
     description: Room allocation and encrypted fan-out relay for the romzo/v1 protocol. The server forwards client-signed envelopes verbatim; it holds no game rules, keys, or state beyond room lifecycles. All requests reject query strings; browser origins are checked against the server allowlist; every route is per-IP rate limited.
     title: Romzo Relay
-    version: 1.2.0
+    version: 1.3.0
 openapi: 3.0.3
 paths:
     /.well-known/romzo:
@@ -577,7 +577,7 @@ paths:
             summary: Restore a room after relay restart
     /ws:
         get:
-            description: Upgrades to a WebSocket carrying romzo/v1 text frames. The handshake is authenticate (admission ticket) then proof (Ed25519 signature over the server challenge). Authenticated frames are subscribe, unsubscribe, send, and keepalive on the channels discovery, lobby, and game; the relay only routes envelopes and never inspects payload contents. This document describes the HTTP surface; frame-level semantics live in the protocol vectors.
+            description: Upgrades to a WebSocket carrying romzo/v1 text frames. The handshake is authenticate (admission ticket) then proof (Ed25519 signature over the server challenge). Authenticated frames are subscribe, unsubscribe, send, and keepalive on the channels declared in the room options (compatibility defaults discovery, lobby, and game when undeclared); the relay only routes envelopes and never inspects payload contents. This document describes the HTTP surface; frame-level semantics live in the protocol vectors.
             responses:
                 "503":
                     content:

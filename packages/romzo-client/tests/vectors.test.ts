@@ -19,7 +19,7 @@ const vector = JSON.parse(
 
 describe("relay-v1 shared vectors", () => {
   it('generic options retain the frozen v1 canonical hash contract', async () => {
-    expect(vector.relayVersion).toBe('1.2.0');
+    expect(vector.relayVersion).toBe('1.3.0');
     expect(await hash('romzo/lobby-options/v1', vector.genericOptions)).toBe(vector.genericOptionsHash);
   });
   it("canonical encoding matches", () => {

@@ -16,7 +16,8 @@ authenticated socket session.
 3. Guests verify the descriptor, configuration hash and host signature before
    obtaining admission. Applications supply their own options validator.
 4. Authenticate the socket through authenticate → challenge → proof →
-   authenticated, then subscribe to discovery, lobby or game channels.
+   authenticated, then subscribe to channels declared in the room options
+   (compatibility defaults: discovery, lobby, game).
 5. Keepalive renews recovery tickets. After a disconnect or server restart,
    restore the room, reconnect, resubscribe and synchronize application state.
 
@@ -43,7 +44,7 @@ application can export them for recovery; protecting them at rest is up to the a
 
 ## Compatibility and verification
 
-Server release 1.2.0 and SDK 0.2.0 implement public protocol `romzo/v1`,
+Server release 1.3.0 and SDK 0.2.0 implement public protocol `romzo/v1`,
 with `/api/v1/` HTTP routes, `/ws` for WebSocket and `/.well-known/romzo`
 for discovery. Cryptographic domains use the `romzo/` prefix. Clients and
 servers must agree on the protocol; tickets and signatures from other

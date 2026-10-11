@@ -55,7 +55,7 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     assert.equal((await discoveryResponse.json()).protocol, "romzo/v1");
     const options = {game: 'generic-example', players: 2, rules: ['draft', {dice: 6}], expansion: null};
     const room = await createRoom(origin, options, {password});
-    assert.equal(room.discovery.version, '1.2.0');
+    assert.equal(room.discovery.version, '1.3.0');
     const invite = buildInviteLink(origin, room.descriptor.code, 'http://localhost:5190/', {allowLoopbackHttp: true});
     assert.equal(parseInviteHash(new URL(invite).hash, {allowLoopbackHttp: true}).origin, origin);
     const guest = await joinRoom(origin, room.descriptor.code, {validateOptions: value => assert.deepEqual(value, options)});
