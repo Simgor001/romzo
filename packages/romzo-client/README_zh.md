@@ -10,7 +10,7 @@ Romzo 客户端 SDK — 「房间型不透明中继」（room-based opaque WebSo
 
 - **房间（room）** 由 10 位房间码标识，房主持 `host` 密钥对房间描述符（descriptor）签名确认。
 - **票据（ticket）**：短期 admission 票据（60 秒、单次握手）用于 WebSocket 认证；长期 recovery 票据用于崩溃/重启后恢复房间。
-- **通道（channel）**：房间 options 可声明至多 8 个频道（如 `{ "name": "table", "maxFrameBytes": 262144 }`），peer 订阅所声明的名字后即可收发热更新（join/leave/receive 帧）。options 不带 `channels` 时使用兼容默认 `discovery` / `lobby` / `game`（16 KiB / 16 KiB / 256 KiB），SDK 以 `DEFAULT_CHANNELS` 导出。中继只校验名字语法与数值边界；频道语义由应用自定。
+- **通道（channel）**：房间 options 可声明至多 8 个频道（如 `{ "name": "table", "maxFrameBytes": 262144 }`），peer 订阅所声明的名字后即可收发消息（成员变化经 join/leave 帧通知，负载经 receive 帧送达）。options 不带 `channels` 时没有频道；SDK 不提供预置名称。中继只校验名字语法与数值边界；频道语义由应用自定。
 - 中继不持久化消息：至多一次投递，客户端信封层负责可靠性（见 FRAMES_zh.md）。
 
 ## 建房 → 确认 → 连接（房主）
@@ -71,7 +71,7 @@ const address = parseInviteHash(new URL(link).hash);
 
 邀请中省略端口 = 服务默认端口 **9224**（`DEFAULT_RELAY_PORT`）。443 中继必须显式写出——`buildInviteLink("https://romzo.net", ...)` 会产出 `#ABCD123XYZ@romzo.net:443`——否则会被解析回 9224。本地回环开发应始终显式写出端口。
 
-函数不读写 DOM 或历史。应用消费邀请后应清除地址栏 hash，并自行保留刷新和历史导航状态。生产邀请隐含 HTTPS；本地 HTTP 客户端连接回环 HTTP 中继须显式传入 `{ allowLoopbackHttp: true }`。口令和恢复票据不得加入邀请。
+函数不读写 DOM 或历史。应用消费邀请后应清除地址栏 hash，并自行保留刷新和历史导航状态。生产邀请隐含 HTTPS；邀请函数处理本地回环地址时，须显式传入 `{ allowLoopbackHttp: true }` 才允许 http。口令和恢复票据不得加入邀请。
 
 ## 崩溃恢复
 
@@ -110,7 +110,7 @@ npm run build -w romzo
 
 HTTP 原语和导出的 `relayRequest(origin, path, body?, options?)` 默认每次尝试 10 秒（含读流）、网络故障重试一次、响应上限 16 KiB；可用 `timeoutMs`、`retries`、`maxResponseBytes` 调整。用户取消、HTTP 错误、非法 JSON、空响应和超限不重试。网络重试复用同一序列化请求，不能重新生成 requestId、challenge、proof 或 Turnstile token。
 
-`joinRoom` 在申请 admission 前执行 `verifyDescriptor`：字段白名单、origin/code、configHash、宿主 Ed25519 签名。`createRoom` 也在确认前验证描述符。通过 `validateOptions` 回调补充应用规则；SDK 不解释桌游 options。签名只证明描述符由所载 host 密钥签署；确认邀请发出者身份仍需可信渠道。
+`joinRoom` 在申请 admission 前执行 `verifyDescriptor`：字段白名单、origin/code、configHash、宿主 Ed25519 签名。`createRoom` 也在确认前验证描述符。通过 `validateOptions` 回调补充应用规则；SDK 不解读 options 内容。签名只证明描述符由所载 host 密钥签署；确认邀请发出者身份仍需可信渠道。
 
 ```ts
 import { createPasswordKeyCache, createRoom } from "romzo";
@@ -126,10 +126,12 @@ passwordKeyProvider.clear(origin); // 或 clear() 清除全部派生密钥
 
 SDK 默认每 10 秒保活，应用应及时订阅频道；未订阅即 keepalive 会被服务端拒绝。握手拒绝乱序、重复 challenge、origin/票据绑定不一致；认证后出现握手帧、非法 JSON、二进制帧或版本错误将关闭并拒绝 pending 请求。
 
-自动重连为 opt-in：在 `RelaySession.connect` 上配置 `autoReconnect: { signedDescriptor, maxAttempts?, baseDelayMs?, maxDelayMs? }`（`signedDescriptor` 必填，缺省直接 throw）。开启后，传输断开或终端 error 帧不再直接关闭会话，而是进入重连循环：每次尝试用最新的 `currentRecovery()` 票据加上配置中的签名描述符，经 `restoreSession` 换新 admission 票据，重握手，自动重新订阅本会话订阅过的频道，并 emit `reconnect`（带 `{ attempt }`）。退避从 `baseDelayMs`（默认 1000 ms）指数翻倍至 `maxDelayMs`（默认 15000 ms），带 ±20% 抖动，最多 `maxAttempts` 次（默认 8）；每次排定尝试都会 emit `reconnecting`（带 `{ attempt, delayMs, error }`）供应用观测。只有所有尝试失败后才 emit `close`（手动 `close()` 则立即 emit）。重连期间 `send`/`subscribe` 以 reconnecting 错误立即拒绝、不悬挂；保活定时器暂停，恢复后重启。不开 `autoReconnect` 行为不变：断开或终端 error 帧直接关闭会话并立即 emit `close`，重连、重新订阅和历史同步由调用方处理。
+自动重连为 opt-in：在 `RelaySession.connect` 上配置 `autoReconnect: { signedDescriptor, maxAttempts?, baseDelayMs?, maxDelayMs? }`（`signedDescriptor` 必填，缺省直接 throw）。开启后，传输断开或终端 error 帧触发重连循环：每次尝试用最新的 `currentRecovery()` 票据加上配置中的签名描述符，经 `restoreSession` 换新 admission 票据，重握手，自动重新订阅本会话订阅过的频道，并 emit `reconnect`（带 `{ attempt }`）。退避从 `baseDelayMs`（默认 1000 ms）指数翻倍至 `maxDelayMs`（默认 15000 ms），带 ±20% 抖动，最多 `maxAttempts` 次（默认 8）；每次排定尝试都会 emit `reconnecting`（带 `{ attempt, delayMs, error }`）供应用观测。只有所有尝试失败后才 emit `close`（手动 `close()` 则立即 emit）。重连期间 `send`/`subscribe` 以 reconnecting 错误立即拒绝、不悬挂；保活定时器暂停，恢复后重启。不开 `autoReconnect` 行为不变：断开或终端 error 帧直接关闭会话并立即 emit `close`，重连、重新订阅和历史同步由调用方处理。
 
-即使开启 `autoReconnect`，信封层历史同步仍由应用负责：SDK 只恢复传输与频道成员关系，不做缺口检测、去重或消息回补（投递为 at-most-once，见 FRAMES.md）。恢复票据请经 `onRecovery`/`currentRecovery()` 持久化，签名描述符与私钥同等保管。
+即使开启 `autoReconnect`，信封层历史同步仍由应用负责：SDK 只恢复传输与频道成员关系，不做缺口检测、去重或消息回补（投递为 at-most-once，见 FRAMES_zh.md）。恢复票据请经 `onRecovery`/`currentRecovery()` 持久化，签名描述符与私钥同等保管。
 
 `generateKeyPair()` 和 `importKeyPair()` 的私钥是 **extractable**，用于导出和恢复。私钥导出值、口令及恢复票据不得出现在邀请 URL、遥测、日志或公开测试产物中；由应用选择受保护的持久化方式和清除策略。调用方可以提供兼容的不可导出 CryptoKey，但这类密钥不能使用 `exportPrivateKey` 导出恢复。
 
 断线后的缺口检测、操作去重及历史同步由应用层负责，投递契约见 FRAMES_zh.md。
+
+频道名称由应用定义；未声明时房间没有频道。

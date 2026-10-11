@@ -4,8 +4,8 @@
 
 Romzo has two components: a Go relay service and a TypeScript client SDK.
 The service manages rooms, signed admission/recovery tickets and WebSocket
-channel membership. It forwards application JSON without interpreting game
-rules. The SDK implements the matching HTTP flow, cryptographic contracts and
+channel membership. It forwards application JSON without interpreting it. The
+SDK implements the matching HTTP flow, cryptographic contracts and
 authenticated socket session.
 
 ## Room lifecycle
@@ -17,7 +17,7 @@ authenticated socket session.
    obtaining admission. Applications supply their own options validator.
 4. Authenticate the socket through authenticate → challenge → proof →
    authenticated, then subscribe to channels declared in the room options
-   (compatibility defaults: discovery, lobby, game).
+   (no predefined channels).
 5. Keepalive renews recovery tickets. After a disconnect or server restart,
    restore the room, reconnect, resubscribe and synchronize application state.
 
@@ -55,5 +55,5 @@ endpoint coverage.
 
 `npm run verify` runs SDK and Go tests, race checks, the publication boundary
 checks and a real local integration through two SDK clients, including ticket
-renewal and server restart recovery. This provides local HTTP/WS evidence;
+renewal and server restart recovery. The integration covers local HTTP/WS only;
 public WSS and multi-instance deployment need separate acceptance tests.

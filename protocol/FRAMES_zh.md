@@ -4,7 +4,7 @@ English: [FRAMES.md](FRAMES.md)
 
 本文档是 `relay` WebSocket 面的规范，与 HTTP 面的 OpenAPI 文档（`openapi.yaml`）互补。第三方客户端实现应以本文档 + 共享测试向量（`protocol/relay-v1-vectors.json`）为准，不需要阅读服务端源码。
 
-服务端发行版本为 **1.3.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。1.3.0 起频道集合改为声明式：建房 options 可携带 `channels` 列表，取代此前硬编码的 `discovery` / `lobby` / `game` 三名字与按名分档的帧上限（见下文「频道」）。options 不带 `channels` 时行为与旧版完全一致。
+服务端发行版本为 **1.3.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。频道由应用通过 `options.channels` 显式声明；中继没有预置的频道名称。
 
 ## 邀请链接与房间配置
 
@@ -25,15 +25,9 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 - `maxFrameBytes` 是该频道 `send` 负载的逐频道上限，取值 256 – 262144（256 KiB）字节（含边界）；
 - 声明非法（名字非法、重名、超过 8 个、数值越界）时建房失败并返回 `invalid_allocation`。
 
-options 不带 `channels` 时保留 1.3.0 之前的兼容默认：
+未声明 `channels` 时，房间没有频道；空数组也表示没有频道，`channels: null` 无效。订阅未声明的名称会返回 `invalid_channel`。恢复流程使用同一份已签名声明，不补入默认频道。
 
-| 频道 | send 负载上限 |
-| --- | --- |
-| `discovery` | 16 KiB |
-| `lobby` | 16 KiB |
-| `game` | 256 KiB |
-
-中继对频道保持零知识：只校验名字语法与数值边界，不理解语义。声明存放在 `options` 里，`configHash` 天然保证同房所有 peer 认同同一份声明。发送时以频道声明的 `maxFrameBytes` 取代旧的按名分档；全局 256 KiB 负载上限仍是绝对上界。
+中继不解读频道语义：只校验名字语法与数值边界。声明存放在 `options` 里，`configHash` 保证同房所有 peer 认同同一份声明。发送时按频道声明的 `maxFrameBytes` 校验；全局 256 KiB 负载上限仍是绝对上界。
 
 ## 连接与传输
 
@@ -63,7 +57,7 @@ options 不带 `channels` 时保留 1.3.0 之前的兼容默认：
 
 | kind | 字段 | 语义 |
 |---|---|---|
-| `subscribe` | `channel` | 订阅房间 options 声明的频道（options 未声明时为兼容默认名）。订阅成功后收到同频道其他成员的 `join`，自己向他人广播 `join` |
+| `subscribe` | `channel` | 订阅房间 options 声明的频道。订阅成功后收到同频道其他成员的 `join`，自己向他人广播 `join` |
 | `unsubscribe` | `channel` | 退订；向同频道他人广播 `leave` |
 | `send` | `channel`, `value`, `target?` | 转发 `value`（任意 JSON）给同频道成员；`target` 缺省为广播，`target` 必须是已订阅该频道的其他 peer。`value` 必须非空且不超出该频道声明的 `maxFrameBytes`（见「频道」） |
 | `keepalive` | — | 续约房间活性（必须先有订阅）；应答中携带新恢复票据 |
@@ -91,7 +85,7 @@ options 不带 `channels` 时保留 1.3.0 之前的兼容默认：
 | `unknown_frame_kind` | 其他未知 kind |
 | `frame_or_byte_rate` | 触发每连接帧率/字节率或每 IP 聚合字节率限制 |
 
-客户端收到终端错误帧后应使用 `recovery` 票据重连并重同步本地状态，而不是立即无限重试；建议指数退避。
+客户端收到终端错误帧后应使用 `recovery` 票据重连并重同步本地状态；重试采用指数退避。
 
 ## 投递语义（可靠性契约）
 

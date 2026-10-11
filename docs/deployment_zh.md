@@ -2,7 +2,7 @@
 
 English: [deployment.md](deployment.md)
 
-独立的 Go 服务；无游戏引擎、静态客户端、数据库或 WebRTC。
+独立的 Go 服务；不依赖数据库，Turnstile 外部校验可按需开启。
 
 ## 运行
 
@@ -35,7 +35,20 @@ go run . init > ../deploy/.env.secrets
 在仓库根目录执行：
 
 ```sh
-docker compose -f deploy/compose.yaml up --build -d
+docker compose -f deploy/compose.yaml pull
+docker compose -f deploy/compose.yaml up -d
+```
+
+Compose 直接拉取 GHCR 的版本镜像，支持 Linux amd64 和 arm64。通过
+`ROMZO_VERSION=v1.3.0` 选择已发布版本。首次发布完成后，维护者需将镜像包
+设为 Public，用户才能匿名拉取。可用
+`docker run --rm ghcr.io/simgor001/romzo:v1.3.0 init > deploy/.env.secrets`
+生成密钥，再按上文填写 `deploy/.env`。
+
+需要从源码构建时执行：
+
+```sh
+docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up --build -d
 ```
 
 - 镜像以非特权用户运行，文件系统只读，capabilities 已收缩，主机端口映射到回环。
@@ -79,7 +92,7 @@ options：
 
 | 限制 | 默认值 | 说明 |
 | --- | --- | --- |
-| `MAX_OPTIONS_BYTES` | 4096 UTF-8 原始字节 | 默认与最大。options 接受任何 canonical JSON 根类型，仅安全整数。服务端核对 configHash 与宿主签名；应用客户端校验游戏规则。 |
+| `MAX_OPTIONS_BYTES` | 4096 UTF-8 原始字节 | 默认与最大。options 接受任何 canonical JSON 根类型，仅安全整数。服务端核对 configHash 与宿主签名；应用客户端校验自己的规则。 |
 
 受限演示可考虑 `MAX_ROOMS=32`、`MAX_CONNECTIONS=128`，两个字节率均为 262144。队列/帧/负载限制与终端错误见 [FRAMES_zh.md](../protocol/FRAMES_zh.md)。
 
@@ -150,7 +163,7 @@ Docker 需要挂载 UID 65532 可写的目录，将文件路径指向该目录�
 
 到限后断开该房间的全部连接；有效限额记录存在期间，恢复票据也不能绕过。
 创建另一间房仍可消耗资源，需要结合现有 IP／连接限流、连接数上限、建房
-鉴权或 Turnstile。无法仅凭不透明的消息判断桌游或隧道用途，也不能把这些
+鉴权或 Turnstile。无法仅凭不透明的消息判断具体用途（游戏、隧道等），也不能把这些
 协议字节统计当作云厂商计费预算。
 
 `NODE_OUTBOUND_BYTES_PER_SECOND` 限制全节点出站入队速率，允许两秒突发。

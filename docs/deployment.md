@@ -2,7 +2,7 @@
 
 中文：[deployment_zh.md](deployment_zh.md)
 
-Standalone Go service; no game engine, static client, database or WebRTC.
+Standalone Go service; no database dependency. Turnstile verification is optional.
 
 ## Run
 
@@ -38,7 +38,21 @@ and perform application-layer resynchronization after a restart.
 From the repository root:
 
 ```sh
-docker compose -f deploy/compose.yaml up --build -d
+docker compose -f deploy/compose.yaml pull
+docker compose -f deploy/compose.yaml up -d
+```
+
+The compose file pulls the versioned GHCR image, with Linux amd64 and arm64
+support. Set `ROMZO_VERSION=v1.3.0` (or another published tag) to choose a
+release. The first publication must complete and the package must be public
+before anonymous pulls work. Generate secrets using
+`docker run --rm ghcr.io/simgor001/romzo:v1.3.0 init > deploy/.env.secrets`,
+then fill `deploy/.env` as described above.
+
+To build locally instead of pulling a release:
+
+```sh
+docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up --build -d
 ```
 
 - The image runs as an unprivileged user, with a read-only filesystem, dropped capabilities and a loopback host-port mapping.
@@ -86,7 +100,7 @@ Options:
 
 | Limit | Default | Notes |
 | --- | --- | --- |
-| `MAX_OPTIONS_BYTES` | 4096 UTF-8 raw bytes | Default and maximum. Options accept any canonical JSON root, safe integers only. The server checks configHash and host signatures; application clients validate game rules. |
+| `MAX_OPTIONS_BYTES` | 4096 UTF-8 raw bytes | Default and maximum. Options accept any canonical JSON root, safe integers only. The server checks configHash and host signatures; application clients validate their own rules. |
 
 For a capped demo, consider `MAX_ROOMS=32`, `MAX_CONNECTIONS=128` and both
 byte rates at 262144. Queue/frame/payload limits and terminal errors are
@@ -179,7 +193,7 @@ A limit cancels all room connections and blocks signed recovery of that room
 while its record remains valid. Creating a different room can still consume
 resources: combine limits with existing per-IP/per-connection rate limits,
 connection caps and creation authorization or Turnstile. The relay cannot infer
-whether opaque messages implement a board game or a traffic tunnel. These
+what opaque messages carry — a game, a tunnel or something else. These
 counters exclude transport overhead and do not enforce cloud billing budgets.
 
 `NODE_OUTBOUND_BYTES_PER_SECOND` caps aggregate enqueued outbound bytes across all
