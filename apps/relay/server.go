@@ -17,6 +17,7 @@ import (
 
 type Challenge struct{ Expires time.Time }
 type Room struct {
+	MonitorID                string
 	quotaSubject             string
 	Signed                   SignedDescriptor
 	Request                  AllocationRequest
@@ -52,6 +53,7 @@ func (anonymousAuthorizer) Authorize(AllocationRequest, string) (string, error) 
 }
 
 type Server struct {
+	monitor                                                             roomMonitor
 	closeReasons                                                        map[string]int
 	cfg                                                                 Config
 	auth                                                                CreateAuthorizer
@@ -89,6 +91,11 @@ func (s *Server) sweepLocked() {
 		}
 	}
 	for code, r := range s.rooms {
+		if s.roomLimitLocked(r, 0) {
+			delete(s.rooms, code)
+			delete(s.requests, r.Request.RequestID)
+			continue
+		}
 		active := false
 		for _, p := range r.Peers {
 			if now.Sub(p.lastSeen) >= 45*time.Second {
@@ -104,6 +111,9 @@ func (s *Server) sweepLocked() {
 			ttl = 30 * time.Minute
 		}
 		if (!r.Confirmed && !r.Expires.After(now)) || (r.Confirmed && !active && !r.Active.Add(ttl).After(now)) {
+			record := s.sampleRoomLocked(r)
+			record.EndedAt = now.UnixMilli()
+			record.online = false
 			delete(s.rooms, code)
 			delete(s.requests, r.Request.RequestID)
 		}
@@ -175,6 +185,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		failure(w, 400, "query_not_allowed")
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, "/admin/") {
+		s.serveAdmin(w, r)
+		return
+	}
 	if origin := r.Header.Get("Origin"); origin != "" {
 		if !s.originAllowed(origin) {
 			failure(w, 403, "origin_denied")
@@ -183,6 +197,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.URL.Path == api+"metrics" || strings.HasPrefix(r.URL.Path, api+"admin/") {
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+			if strings.HasPrefix(r.URL.Path, api+"admin/") {
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			}
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	}
 	if r.Method == "OPTIONS" {
@@ -195,6 +215,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "GET" && r.URL.Path == "/.well-known/romzo" {
 		result(w, 200, map[string]any{"protocol": protocol, "version": version, "origin": s.cfg.Origin, "auth": s.cfg.Auth, "salt": hex.EncodeToString(s.cfg.Salt), "iterations": 600000, "algorithm": "PBKDF2-HMAC-SHA256", "turnstile": s.cfg.TurnstileSecret != "", "limits": map[string]int{"framesPerSecond": s.cfg.FramesPerSecond, "bytesPerSecond": s.cfg.BytesPerSecond}})
+		return
+	}
+	if r.URL.Path == api+"metrics" || strings.HasPrefix(r.URL.Path, api+"admin/") {
+		if s.cfg.MetricsKey == "" {
+			failure(w, 404, "not_found")
+			return
+		}
+		values := r.Header.Values("Authorization")
+		if len(values) != 1 || !strings.HasPrefix(values[0], "Bearer ") || !hmac.Equal([]byte(strings.TrimPrefix(values[0], "Bearer ")), []byte(s.cfg.MetricsKey)) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="metrics"`)
+			failure(w, 401, "unauthorized")
+			return
+		}
+	}
+	if strings.HasPrefix(r.URL.Path, api+"admin/") {
+		s.moderate(w, r)
 		return
 	}
 	ip := s.clientIP(r)
@@ -228,7 +264,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" && r.URL.Path == api+"metrics" {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		result(w, 200, map[string]any{"rooms": len(s.rooms), "connections": s.connections, "unauthenticated": s.unauthenticated, "queueBytes": s.queued, "receivedFrames": s.receivedFrames, "receivedBytes": s.receivedBytes, "sentFrames": s.sentFrames, "sentBytes": s.sentBytes, "queueRejected": s.queueRejected, "closedReasons": s.closeReasons})
+		result(w, 200, map[string]any{"rooms": len(s.rooms), "connections": s.connections, "unauthenticated": s.unauthenticated, "queueBytes": s.queued, "receivedFrames": s.receivedFrames, "receivedBytes": s.receivedBytes, "sentFrames": s.sentFrames, "sentBytes": s.sentBytes, "queueRejected": s.queueRejected, "closedReasons": s.closeReasons, "roomHistory": s.roomHistoryLocked()})
 		return
 	}
 	if r.Method == "GET" && r.URL.Path == wsPath {
@@ -444,6 +480,13 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 	}
 	d := Descriptor{protocol, s.cfg.Origin, code, randomHex(16), q.Host, q.Transport, q.Capability, q.ConfigHash, q.Options}
 	room := &Room{quotaSubject: subject, Signed: SignedDescriptor{Descriptor: d}, Request: q, RequestHash: h, Expires: s.now().Add(30 * time.Second), Active: s.now(), Peers: map[string]*Peer{}, Channels: channels}
+	if s.attachRoomRecordLocked(room) == nil {
+		failure(w, 503, "history_capacity")
+		return
+	}
+	if s.cfg.RecordCreatorIP {
+		s.monitor.records[room.MonitorID].CreatorIP = s.clientIP(r)
+	}
 	s.rooms[code] = room
 	s.requests[q.RequestID] = code
 	result(w, 200, d)
@@ -562,6 +605,14 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
 		// Recovery reinstates the existing lease. Only authenticated subscription
 		// and keepalive may renew it; HTTP replay cannot mint extra lifetime.
 		room = &Room{Signed: b.Signed, Confirmed: true, EverConnected: true, Active: time.UnixMilli(t.Expires).Add(-30 * time.Minute), Peers: map[string]*Peer{}, Channels: channels}
+		if s.attachRoomRecordLocked(room) == nil {
+			failure(w, 503, "history_capacity")
+			return
+		}
+		if s.roomLimitLocked(room, 0) {
+			failure(w, 410, "room_expired")
+			return
+		}
 		s.rooms[code] = room
 	}
 	purpose := "guest"
