@@ -21,6 +21,7 @@ const fixtureValues = new Set([
 ]);
 function inspect(label, body) {
   if (label.replaceAll('\\', '/').includes('.romzo-history/')) fail(label, 'private-runtime-history');
+  if (label.replaceAll('\\', '/').includes('.ssh/')) fail(label, 'private-ssh-material');
   try {
     const value = JSON.parse(body);
     if (Array.isArray(value) && value.some(row => row && typeof row === 'object' && typeof row.id === 'string' && 'observedAt' in row && 'onlineMillis' in row && 'receivedBytes' in row)) fail(label, 'private-runtime-history');
