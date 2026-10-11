@@ -260,7 +260,7 @@ func TestLiveRoomLimitsCloseAllConnections(t *testing.T) {
 			defer a.CloseNow()
 			b := connectTest(t, server.URL, ticket, key)
 			defer b.CloseNow()
-			writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "id": "s", "channel": "game"})
+			writeTest(t, a, map[string]any{"v": protocol, "kind": "subscribe", "id": "s", "channel": "table"})
 			_ = readTest(t, a)
 			s.mu.Lock()
 			room := s.rooms[desc.Descriptor.Code]
@@ -280,7 +280,7 @@ func TestLiveRoomLimitsCloseAllConnections(t *testing.T) {
 				}
 			}
 			if reason == "room_traffic_limit" {
-				writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "id": "over", "channel": "game", "value": strings.Repeat("x", 128)})
+				writeTest(t, a, map[string]any{"v": protocol, "kind": "send", "id": "over", "channel": "table", "value": strings.Repeat("x", 128)})
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()

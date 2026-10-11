@@ -74,7 +74,7 @@
 } from 'romzo';
 
 const room = await createRoom('romzo.net', {
-  game: 'example', players: 2, rules: ['draft']
+  app: 'example', channels: [{ name: 'table', maxFrameBytes: 262144 }]
 });
 
 const invite = buildInviteLink(room.descriptor.origin,
@@ -85,7 +85,7 @@ const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
 const session = await RelaySession.connect(
   url, room.admission, room.transport);
 
-await session.subscribe('game');</code></pre>
+await session.subscribe('table');</code></pre>
       </div>
     </div>
   </div>

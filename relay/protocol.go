@@ -25,15 +25,6 @@ const controlLimit = 16 * 1024
 const payloadLimit = 256 * 1024
 const frameLimit = 288 * 1024
 
-// defaultChannels preserves pre-1.3.0 behavior for allocation requests whose
-// options do not declare a channel set: the relay's original three channels
-// with their per-channel send-payload limits.
-var defaultChannels = map[string]int{
-	"discovery": controlLimit,
-	"lobby":     controlLimit,
-	"game":      payloadLimit,
-}
-
 func randomHex(n int) string {
 	b := make([]byte, n)
 	if _, e := rand.Read(b); e != nil {

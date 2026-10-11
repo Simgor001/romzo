@@ -99,13 +99,11 @@ npm run build -w romzo</code></pre>
         （60 秒、单次握手）；recovery 票据用于客户端崩溃或中继重启后恢复房间。</li>
       <li class="l-en"><strong>Channels</strong> — declared per room in
         <code>options.channels</code> (name plus per-channel frame cap, at most 8);
-        if omitted, the <code>discovery</code> / <code>lobby</code> /
-        <code>game</code> defaults apply. Subscribers receive
+        there are no predefined channels. Omission means no channels. Subscribers receive
         <code>join</code> / <code>leave</code> / <code>receive</code> frames.</li>
       <li class="l-zh"><strong>通道</strong>——按房间在
         <code>options.channels</code> 中声明（名字 + 逐频道帧上限，最多 8 个）；
-        缺省时用 <code>discovery</code> / <code>lobby</code> / <code>game</code>
-        默认档。订阅后收到 <code>join</code> / <code>leave</code> /
+        中继不预置频道，未声明时没有频道。订阅后收到 <code>join</code> / <code>leave</code> /
         <code>receive</code> 帧。</li>
     </ul>
   </div>

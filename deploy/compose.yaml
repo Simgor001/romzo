@@ -1,8 +1,6 @@
 services:
   relay:
-    build:
-      context: ../relay
-      dockerfile: ../deploy/Dockerfile
+    image: ghcr.io/simgor001/romzo:${ROMZO_VERSION:-v1.3.0}
     env_file: .env
     environment:
       LISTEN: :9224

@@ -146,7 +146,7 @@ func TestGenericRoomAllocationAndConfiguredOptionsBound(t *testing.T) {
 	transport, _, _ := ed25519.GenerateKey(rand.Reader)
 	var challenge struct{ Challenge string }
 	invoke(t, s, "POST", api+"room-challenges", map[string]any{}, 200, &challenge)
-	options := json.RawMessage(`{"game":"other","players":2,"rules":["custom"]}`)
+	options := json.RawMessage(`{"table":"other","players":2,"rules":["custom"]}`)
 	q := AllocationRequest{protocol, s.cfg.Origin, challenge.Challenge, randomHex(16), hex.EncodeToString(host), hex.EncodeToString(transport), hash("romzo/lobby-options/v1", options), randomHex(16), options}
 	invoke(t, s, "POST", api+"rooms", map[string]any{"request": q, "proof": ""}, 200, nil)
 	q.RequestID = randomHex(16)

@@ -353,16 +353,8 @@ func validOptions(data json.RawMessage) bool {
 
 var channelNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
-func defaultChannelSet() map[string]int {
-	channels := make(map[string]int, len(defaultChannels))
-	for name, limit := range defaultChannels {
-		channels[name] = limit
-	}
-	return channels
-}
-
 // channelsFromOptions extracts the declared channel set from opaque room
-// options; options without a "channels" key keep the compatibility defaults.
+// options. No channel names are preconfigured; omission means no channels.
 // The relay only validates name syntax and numeric bounds — channel meaning
 // is application policy, and configHash binds every peer of a room to the
 // same declaration.
@@ -373,11 +365,14 @@ func channelsFromOptions(data json.RawMessage) (map[string]int, error) {
 	}
 	object, ok := root.(map[string]any)
 	if !ok {
-		return defaultChannelSet(), nil
+		return map[string]int{}, nil
 	}
 	raw, present := object["channels"]
-	if !present || raw == nil {
-		return defaultChannelSet(), nil
+	if !present {
+		return map[string]int{}, nil
+	}
+	if raw == nil {
+		return nil, errors.New("channels must be an array")
 	}
 	blob, err := json.Marshal(raw)
 	if err != nil {
