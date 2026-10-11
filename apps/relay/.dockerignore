@@ -1,0 +1,13 @@
+# Send only build inputs to the builder, including remote builders.
+**
+!Dockerfile
+!.dockerignore
+!go.mod
+!go.sum
+!LICENSE
+!config.go
+!main.go
+!protocol.go
+!server.go
+!websocket.go
+!openapi.go

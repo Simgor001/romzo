@@ -1,0 +1,15 @@
+services:
+  relay:
+    build: .
+    env_file: .env
+    environment:
+      LISTEN: :8080
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 2
+    pids_limit: 128
