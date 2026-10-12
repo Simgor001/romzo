@@ -59,9 +59,9 @@
       <h2 id="room-title"><span class="l-en">Create a room</span><span class="l-zh">创建房间</span></h2>
     </div>
     <div class="play-body">
-      <p class="play-hint l-en">Complete the check, then invite someone to join. Guests do not need to verify.</p>
-      <p class="play-hint l-zh">完成验证后创建房间，再邀请朋友加入。访客无需验证。</p>
-      <div id="ts-widget" class="cf-turnstile" data-sitekey="0x4AAAAAAFUPxg9x3hbPICdn" data-action="create-room" data-theme="light" data-size="compact"></div>
+      <p class="play-hint l-en">Click create, complete the check, then invite someone to join. Guests do not need to verify.</p>
+      <p class="play-hint l-zh">点击创建房间后完成验证，再邀请朋友加入。访客无需验证。</p>
+      <div id="ts-widget" hidden data-sitekey="0x4AAAAAAFUPxg9x3hbPICdn" data-action="create-room" data-theme="light" data-size="compact"></div>
       <button class="btn primary" id="create" type="button"><span class="l-en">Create room</span><span class="l-zh">创建房间</span></button>
       <div id="create-result" hidden>
         <div class="play-room-code"><span class="l-en">Room code</span><span class="l-zh">房间代码</span><strong class="l-en" id="room-code"></strong><strong class="l-zh" id="room-code-zh"></strong></div>
@@ -109,7 +109,6 @@
 </footer>
 
 <script src="site.js"></script>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script type="module">
 import { createRoom, joinRoom, RelaySession, buildInviteLink, parseInviteHash } from 'romzo';
 
@@ -120,6 +119,48 @@ const logEl = document.getElementById('log');
 const statusEls = [document.getElementById('role-status'), document.getElementById('role-status-zh')];
 let session = null;
 let widgetId = null;
+let turnstileLoad = null;
+function loadTurnstile() {
+  if (window.turnstile) return Promise.resolve();
+  if (turnstileLoad) return turnstileLoad;
+  turnstileLoad = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    const fail = () => { clearTimeout(timer); script.remove(); reject(Error('verification service unavailable')); };
+    const timer = setTimeout(fail, 15000);
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.onload = () => { clearTimeout(timer); if (window.turnstile) resolve(); else fail(); };
+    script.onerror = fail;
+    document.head.append(script);
+  }).catch(error => { turnstileLoad = null; throw error; });
+  return turnstileLoad;
+}
+async function verificationToken() {
+  await loadTurnstile();
+  const box = document.getElementById('ts-widget');
+  box.hidden = false;
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    const finish = (token) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (token) resolve(token); else reject(Error('verification failed or expired; try again'));
+    };
+    const timer = setTimeout(() => finish(null), 120000);
+    try {
+      widgetId = window.turnstile.render(box, {
+        sitekey: box.dataset.sitekey, action: box.dataset.action,
+        theme: 'light', size: 'compact', execution: 'execute', appearance: 'execute',
+        retry: 'never', 'refresh-expired': 'never', 'refresh-timeout': 'never',
+        callback: token => finish(token),
+        'error-callback': () => { finish(null); return true; },
+        'expired-callback': () => finish(null),
+        'timeout-callback': () => finish(null),
+      });
+      window.turnstile.execute(widgetId);
+    } catch { finish(null); }
+  });
+}
 
 function log(text, cls) {
   const p = document.createElement('p');
@@ -155,13 +196,12 @@ async function openSession(admission, transport, label) {
 // Host flow
 document.getElementById('create').addEventListener('click', async () => {
   const btn = document.getElementById('create');
-  const token = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
-  if (!token) { log('complete the Turnstile check first', 'sys'); return; }
+  if (btn.disabled) return;
   btn.disabled = true;
+  setStatus('Complete the check to create your room.', '请完成验证，随后自动创建房间。');
   try {
+    const token = await verificationToken();
     const room = await createRoom(ORIGIN, roomOptions, { turnstileToken: token });
-    if (window.turnstile && widgetId !== null) window.turnstile.reset(widgetId);
-    else if (window.turnstile) window.turnstile.reset();
     const invite = buildInviteLink(ORIGIN, room.descriptor.code, new URL('play.html', location.href).href.split('#')[0], inviteOptions);
     document.getElementById('room-code').textContent = room.descriptor.code;
     document.getElementById('room-code-zh').textContent = room.descriptor.code;
@@ -173,8 +213,13 @@ document.getElementById('create').addEventListener('click', async () => {
     log('room created: ' + room.descriptor.code, 'sys');
   } catch (e) {
     log('create failed: ' + (e && e.message ? e.message : e), 'sys');
-    if (window.turnstile) window.turnstile.reset(widgetId ?? undefined);
+    setStatus('Room creation failed. Try again.', '创建失败，请重试。');
   } finally {
+    if (widgetId !== null) {
+      try { window.turnstile.remove(widgetId); } catch { /* already removed */ }
+      widgetId = null;
+    }
+    document.getElementById('ts-widget').hidden = true;
     btn.disabled = !!session;
   }
 });
