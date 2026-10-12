@@ -104,7 +104,7 @@ function signedDescriptor(transport: string): SignedDescriptor {
  * Scripted relay: completes the four-frame handshake for any admission,
  * then acks every request. `recovery` is attached to keepalive acks when given.
  */
-function serve(identity: Identity, opts: { recovery?: SignedTicket } = {}) {
+function serve(identity: Identity, opts: { recovery?: SignedTicket; members?: boolean } = {}) {
   FakeSocket.serverHandler = async (frame, s) => {
     if (frame.kind === "authenticate") {
       (s as any).admission = frame.admission;
@@ -130,11 +130,11 @@ function serve(identity: Identity, opts: { recovery?: SignedTicket } = {}) {
           frame.signature,
         ),
       ).toBe(true);
-      s.deliver({ v: PROTOCOL, kind: "authenticated", id: "ab".repeat(16) });
+      s.deliver({ v: PROTOCOL, kind: "authenticated", id: "ab".repeat(16), ...(opts.members ? {key:identity.publicKey,joinSeq:2} : {}) });
     } else if (
       ["subscribe", "unsubscribe", "send"].includes(frame.kind)
     ) {
-      s.deliver({ v: PROTOCOL, kind: "ack", id: frame.id });
+      s.deliver({ v: PROTOCOL, kind: "ack", id: frame.id, ...(opts.members && frame.kind==="subscribe" ? {value:{members:[{peer:"ab".repeat(16),key:identity.publicKey,joinSeq:2}]}} : {}) });
     } else if (frame.kind === "keepalive") {
       s.deliver({
         v: PROTOCOL,
@@ -211,6 +211,21 @@ describe("RelaySession autoReconnect", () => {
         },
       }),
     ).rejects.toThrow(RangeError);
+  });
+
+  it("clears stale members on loss and restores numbered subscription snapshots automatically", async () => {
+    const identity=await generateKeyPair();const admission=makeAdmission(identity.publicKey);
+    const descriptor=signedDescriptor(identity.publicKey);const recovery=recoveryTicket(identity.publicKey,"11".repeat(16));
+    stubRestore(identity);
+    const connecting=RelaySession.connect("wss://relay.example/ws",admission,identity,{webSocketFactory:factory,keepalive:false,autoReconnect:{signedDescriptor:descriptor,baseDelayMs:100}});
+    serve(identity,{recovery,members:true});const session=await connecting;
+    await session.subscribe("chat");await session.keepalive();
+    expect(session.joinSeq).toBe(2);expect(session.members("chat").map(m=>m.joinSeq)).toEqual([2]);
+    FakeSocket.current!.deliver({v:PROTOCOL,kind:"join",channel:"chat",peer:"stale",key:"other-key",joinSeq:1});
+    const connected=new Promise<void>(resolve=>session.on("reconnect",()=>resolve()));
+    FakeSocket.current!.onclose!();expect(session.members("chat")).toEqual([]);
+    await vi.advanceTimersByTimeAsync(120);await connected;
+    expect(session.joinSeq).toBe(2);expect(session.members("chat").map(m=>m.joinSeq)).toEqual([2]);session.close();
   });
 
   it("reconnects after a transport drop, re-subscribes and reports the attempt", async () => {

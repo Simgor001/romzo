@@ -11,6 +11,7 @@ import (
 )
 
 type Peer struct {
+	joinSeq                 int
 	limitReason             string
 	id, key                 string
 	conn                    *websocket.Conn
@@ -153,13 +154,31 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		return
 	}
+	seq, err := s.registerMemberLocked(room, p.key)
+	if err != nil {
+		s.mu.Unlock()
+		code := "member_state_write_failed"
+		if err.Error() == "member capacity" {
+			code = "member_capacity"
+		}
+		if err.Error() == "member state unavailable" {
+			code = "member_state_unavailable"
+		}
+		_ = c.Write(authCtx, websocket.MessageText, wire(map[string]any{"v": protocol, "kind": "error", "error": code}))
+		return
+	}
+	p.joinSeq = seq
 	s.sampleRoomLocked(room)
 	room.Peers[p.id] = p
 	s.sampleRoomLocked(room)
 	authenticated = true
 	closeReason = "transport_closed_or_idle"
 	s.unauthenticated--
-	s.enqueueLocked(p, map[string]any{"v": protocol, "kind": "authenticated", "id": p.id})
+	authenticatedFrame := map[string]any{"v": protocol, "kind": "authenticated", "id": p.id, "key": p.key}
+	if p.joinSeq > 0 {
+		authenticatedFrame["joinSeq"] = p.joinSeq
+	}
+	s.enqueueLocked(p, authenticatedFrame)
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
@@ -175,7 +194,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		for _, other := range room.Peers {
 			for channel := range p.channels {
 				if other.channels[channel] {
-					s.enqueueLocked(other, map[string]any{"v": protocol, "kind": "leave", "channel": channel, "peer": p.id})
+					s.enqueueLocked(other, presenceFrame("leave", channel, p))
 				}
 			}
 		}
@@ -261,13 +280,15 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if !p.channels[f.Channel] {
 				p.channels[f.Channel] = true
-				for id, other := range room.Peers {
+				for _, other := range room.Peers {
 					if other != p && other.channels[f.Channel] {
-						s.enqueueLocked(p, map[string]any{"v": protocol, "kind": "join", "channel": f.Channel, "peer": id, "key": other.key})
-						s.enqueueLocked(other, map[string]any{"v": protocol, "kind": "join", "channel": f.Channel, "peer": p.id, "key": p.key})
+						s.enqueueLocked(p, presenceFrame("join", f.Channel, other))
+						s.enqueueLocked(other, presenceFrame("join", f.Channel, p))
 					}
 				}
 			}
+			response["value"] = map[string]any{"members": channelMembers(room, f.Channel)}
+			response["channel"] = f.Channel
 			room.Active = now
 			p.lastSeen = now
 			room.EverConnected = true
@@ -276,7 +297,7 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 				delete(p.channels, f.Channel)
 				for _, other := range room.Peers {
 					if other != p && other.channels[f.Channel] {
-						s.enqueueLocked(other, map[string]any{"v": protocol, "kind": "leave", "channel": f.Channel, "peer": p.id})
+						s.enqueueLocked(other, presenceFrame("leave", f.Channel, p))
 					}
 				}
 			}
@@ -294,7 +315,9 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 			}
 			for id, other := range room.Peers {
 				if other != p && other.channels[f.Channel] && (target == "" || target == id) {
-					s.enqueueLocked(other, map[string]any{"v": protocol, "kind": "receive", "channel": f.Channel, "peer": p.id, "value": f.Value})
+					received := presenceFrame("receive", f.Channel, p)
+					received["value"] = f.Value
+					s.enqueueLocked(other, received)
 				}
 			}
 		case "keepalive":
@@ -306,7 +329,12 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 			}
 			room.Active = now
 			p.lastSeen = now
-			response["recovery"] = s.ticket(room, p.key, "recovery", 30*time.Minute)
+			if err := s.prepareMembersLocked(room, now.Add(30*time.Minute).UnixMilli()); err != nil {
+				response["kind"] = "error"
+				response["error"] = "member_state_write_failed"
+			} else {
+				response["recovery"] = s.ticket(room, p.key, "recovery", 30*time.Minute)
+			}
 		default:
 			closeReason = "unknown_frame_kind"
 			s.mu.Unlock()

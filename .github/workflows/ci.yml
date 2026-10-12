@@ -25,7 +25,18 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Install mesh browser engine
+        run: npx playwright install --with-deps chromium
       - run: npm run verify
+      - name: Install mobile browser engines
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium webkit
+      - name: Verify mobile playground
+        if: runner.os == 'Linux'
+        run: npm run test:mobile
+      - name: Verify durable member order in real browsers
+        if: runner.os == 'Linux'
+        run: npm run test:members
       - run: git diff --exit-code
       - run: git diff --check
       - name: Retain verified relay binaries
@@ -144,6 +155,8 @@ jobs:
           version=$(node -p "require('./packages/romzo-client/package.json').version")
           test "$GITHUB_REF_NAME" = "client-v$version"
       - run: npm ci
+      - name: Install mesh browser engine
+        run: npx playwright install --with-deps chromium
       - run: npm run verify
       - name: Publish SDK to npm
         run: npm publish -w romzo --access public
@@ -153,6 +166,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:website
       - name: Deploy static site to romzo.net origin
         env:
           DEPLOY_KEY: ${{ secrets.ROMZO_DEPLOY_KEY }}

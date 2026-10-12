@@ -20,7 +20,7 @@ describe("bounded HTTP retry", () => {
       if (bodies.length === 1) throw new TypeError("lost response");
       return json(rooms.get(r.requestId));
     });
-    expect(await allocate(origin, request, "proof", "token", { fetch })).toEqual({ code: "ABCD2345EF" });
+    expect(await allocate(origin, request, { proof: "proof", turnstile: "token" }, { fetch })).toEqual({ code: "ABCD2345EF" });
     expect(rooms.size).toBe(1);
     expect(bodies[0]).toBe(bodies[1]);
   });

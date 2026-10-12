@@ -5,7 +5,7 @@
 This document is the specification of the `relay` WebSocket surface; it complements the OpenAPI document (`openapi.yaml`) for the HTTP surface.
 Third-party client implementations can follow this document and the shared test vectors (`protocol/relay-v1-vectors.json`) alone.
 
-Server release is **1.3.1**; the public wire protocol is **romzo/v1**.
+Server release is **1.4.0**; the public wire protocol is **romzo/v1**.
 HTTP routes use `/api/v1/`, WebSocket uses `/ws`, and cryptographic domains use the `romzo/` prefix.
 Clients and servers must use the same protocol.
 Channels are declared by applications in `options.channels`; the relay has no predefined channel names.
@@ -16,9 +16,18 @@ The standard invite is `https://<client-origin>/#<10-char Crockford room code>@<
 
 - Room codes are uppercase, without separators.
 - Production relays imply HTTPS.
-- An omitted port is the service default port **9224**.
-- A relay on 443 must write `:443` explicitly (otherwise it reads back as 9224).
+- An omitted port is the service default port **443**.
+- Only the service default port may be omitted; every other port must be written explicitly.
 - Local loopback development should always write its port explicitly.
+### LAN invitations
+
+Three forms extend the host position; the room code is unchanged and all forms stay pure fragment data:
+
+- `#<code>/lan` — discovery form: no host. The room code is the rendezvous key on the local network; the application locates the host by its own means (e.g. a Node host announcing over multicast).
+- `#<code>/<host1,host2:port>` — direct form: one to eight private LAN candidates sharing a single explicit port, tried in order.
+- `#<code>/<private-host:port>` — a single private literal auto-detects as the direct form with one candidate.
+
+Candidates must be private literals (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `100.64/10`, `fc00::/7`, `fe80::/10`, or a `*.local` name). Private literals are never relay origins; public IP literals keep the relay-origin meaning. Loopback stays a relay origin (HTTP only by explicit opt-in), never a LAN host. The bare keyword `lan` is the discovery form; `lan` written with an explicit port reads as a hostname.
 
 The fragment never enters the HTTP request.
 The client parses it, clears it via `history.replaceState`, and keeps the state needed for reloads and history navigation itself.
@@ -130,3 +139,27 @@ Rooms and channels share that source-IP budget, and JSON whitespace counts.
 Per-connection limits still apply.
 IP identification trusts only proxies listed in `TRUSTED_PROXIES`; outbound fanout bandwidth lies outside this limit.
 Token refill uses the monotonic component of Go time.
+
+## Stable member order (optional v1 extension)
+
+Discovery advertises `stableMemberOrder: true` only when `MEMBER_STATE_FILE` is configured. Within a room instance, a verified transport public key receives one `joinSeq` (1..4096) at its first successful authenticated connection. Allocation/admission requests do not reserve a number; the host is not necessarily number 1. Leaving never recycles numbers; multiple connections of the same public key share the number. This is transport membership order, not a game seat.
+
+`authenticated` adds `key` and, when enabled, `joinSeq`. `join`, `leave` and `receive` add the sender/member `key` and optional `joinSeq`; `peer` remains the ephemeral connection ID used for targeting. Existing frame kinds, signatures and `romzo/v1` stay unchanged.
+
+Every successful subscribe ack includes `channel` and `value: {members: [{peer, key, joinSeq?}, ...]}`: a complete list of online connections subscribed to that channel, including the caller. It is sorted by joinSeq then peer, and includes separate connections sharing a key. Existing-member join notifications precede this snapshot; subsequent increments follow it on the same socket queue. Apply the snapshot synchronously when processing the ack, before subsequent frames; applying it later in a promise continuation can erase a newer join. Repeated subscriptions also return a fresh snapshot. No other channel membership is disclosed. Server snapshots may exceed the 16 KiB client-control cap and remain within the 288 KiB server-frame cap.
+
+Persisted order survives recovery into the same signed room instance; a new instance never inherits the old order. A restored service must have the original state file and stable ticket keys. Missing records fail restore with `member_state_unavailable` (409); durable-write failures use `member_state_write_failed` (503 on HTTP or request/terminal WS error). A 4096-identity room rejects new authenticated identities with `member_capacity`; existing identities can reconnect. When durable numbering is disabled, joinSeq is omitted; clients must not invent a globally consistent number.
+
+See [member-order-v1-vectors.json](member-order-v1-vectors.json) for public, deterministic frame fixtures.
+
+## Optional client mesh convention
+
+The SDK's optional `MeshSession` declares a `signal` application channel and
+exchanges versioned hello, signed offer/answer, generation-scoped candidates,
+restart and best-effort bye payloads through normal directed sends. Business
+payloads can then use a reliable ordered WebRTC DataChannel instead of the relay.
+This is a client convention, not a change to `romzo/v1` or relay authorization.
+Across relay/RTC switches, messages may be reordered or lost; applications own
+sequencing, acknowledgments and history recovery. SDP signatures trust roster
+keys and do not authenticate identities independently of the relay.
+See [SDK mesh contract](../packages/romzo-client/README.md#optional-automatic-p2p-mesh).

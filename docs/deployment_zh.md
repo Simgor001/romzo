@@ -20,7 +20,7 @@ go run . init > ../deploy/.env.secrets
 房间／节点限额仍然启用。Turnstile、可信代理、历史记录文件和创建 IP 记录按需
 配置。空密钥仍须填入初始化生成的值，当前不会在启动时自动生成。
 
-服务端以 HTTP/WS 形式运行在 TLS 反向代理之后；除显式回环开发外，PUBLIC_ORIGIN 必须是规范的 HTTPS 源站。不要把未加密监听口暴露到公网。`relay -version` 报告 1.3.1。
+服务端以 HTTP/WS 形式运行在 TLS 反向代理之后；除显式回环开发外，PUBLIC_ORIGIN 必须是规范的 HTTPS 源站。不要把未加密监听口暴露到公网。`relay -version` 报告 1.4.0。
 
 ## 配置
 
@@ -28,11 +28,14 @@ go run . init > ../deploy/.env.secrets
 | --- | --- | --- |
 | `CLIENT_ORIGINS` | `PUBLIC_ORIGIN` | `*` 开放任意 HTTP(S) 网页来源；私有部署使用逗号分隔的精确来源（协议、主机、端口，不带路径）。来源开放不跳过身份认证或限流。 |
 | `ADMIN_ORIGINS` | `PUBLIC_ORIGIN` | metrics/admin 的独立来源白名单，不允许 `*`，仍须管理 Bearer 密钥。 |
-| `CREATE_AUTH` | — | `password` 校验 PBKDF2 质询证明（proof）；`anonymous`/`off` 跳过该校验。 |
-| `TURNSTILE_SECRET` | —（可选） | 独立地仅在建房时强制 Turnstile；公网匿名演示应启用它。幂等分配重放不会重新校验已消耗的 Turnstile token。 |
+| `CREATE_AUTH` | — | 建房真人校验模式：`password`（PBKDF2 证明）、`anonymous`/`off`（免校验）、`turnstile`、`oauth`，以及组合 `turnstile+oauth`；后三者需要 `GRANT_KEY`。 |
+| `TURNSTILE_SECRET` | —（可选） | 启用 Cloudflare Turnstile 校验；要求 `CREATE_AUTH` 含 `turnstile`。siteverify 响应的 hostname 固定为 `PUBLIC_ORIGIN` 的主机名，除非用 `TURNSTILE_HOSTNAMES`（逗号分隔）覆盖；`TURNSTILE_ACTION` 可强制组件 action。客户端经 `/api/v1/verify` 用 token 换取 grant。 |
 | `*_FILE` 变量 | — | 私钥值也可改经对应的 `*_FILE` 变量提供。 |
 | `AUTH_SALT` | — | 正常重启期间保持稳定。轮换口令需要新盐。 |
 | `TICKET_KEY` | — | 正常重启期间保持稳定。丢失或轮换票据密钥会使恢复失效。 |
+| `GRANT_KEY` | — | 为建房 grant（turnstile/oauth 校验结果）签名；保持稳定，轮换仅使未使用的 grant 失效。 |
+| `TURNSTILE_SITEKEY` | — | 公开 Turnstile site key，经发现文档提供给 SDK 渲染组件；组合模式 `turnstile+oauth` 必填。 |
+| `OAUTH_*` | — | 通用 OAuth2/OIDC 客户端（`OAUTH_PROVIDER`、`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`OAUTH_AUTHORIZE_URL`、`OAUTH_TOKEN_URL`、`OAUTH_USERINFO_URL`，可选 `OAUTH_SCOPES`、`OAUTH_NAME_FIELD` 点路径）。要求 `CREATE_AUTH` 含 `oauth`；需在提供方注册回调地址 `PUBLIC_ORIGIN + /api/v1/auth/oauth/callback`。grant 携带提供方登录名作为主体，因此接入 OAuth 的节点即私服。 |
 
 房间仅存内存：重启后，持有未过期恢复票据的客户端恢复房间，并执行应用层重同步。
 
@@ -52,7 +55,7 @@ docker compose -f deploy/compose.yaml up -d
 Compose 直接拉取 GHCR 的版本镜像，支持 Linux amd64 和 arm64。通过
 `ROMZO_VERSION=v1.3.0` 选择已发布版本。首次发布完成后，维护者需将镜像包
 设为 Public，用户才能匿名拉取。可用
-`docker run --rm ghcr.io/simgor001/romzo:v1.3.0 init > deploy/.env.secrets`
+`docker run --rm ghcr.io/simgor001/romzo:v1.4.0 init > deploy/.env.secrets`
 生成密钥，再按上文填写 `deploy/.env`。
 
 需要从源码构建时执行：
@@ -188,3 +191,15 @@ Docker 需要挂载 UID 65532 可写的目录，将文件路径指向该目录�
 携带 `Authorization: Bearer <METRICS_KEY>`，向 `/api/v1/admin/rooms/stop` POST `{"id":"<监控编号>"}`，可断开房间内所有连接并拒绝有效恢复票据。管理页面提供“下线”按钮。这不封禁用户，也不阻止新建房间；IP 过滤交给反向代理或 VPS 防火墙。
 
 配置 `METRICS_HISTORY_FILE` 后，记录和下线标记保存在部署者本地。结束记录在 24 小时后清理，长于当前 10／30 分钟恢复票据期限；未配置文件时，重启会清空记录。下线立即生效；保存失败返回 500，此时不能保证重启后仍拒绝恢复。其他历史更新约每 10 秒保存一次。不得将记录或密钥提交到 Git、打包到镜像或公开。启用 IP 历史记录时，应告知用户用途、访问人员和保留期限。监控数据不回传给项目方；创建 IP 不能单独证明个人身份。
+
+## 持久成员编号
+
+新版在线体验页要求启用此功能；未提供成员编号的节点会明确拒绝连接，不再兼容旧版。
+
+设置 `MEMBER_STATE_FILE=/var/lib/romzo/members.json`，并挂载持久、私有且可写的目录；Docker 中目录应归 relay 的 UID 65532 所有。不能与 `METRICS_HISTORY_FILE` 使用同一路径。留空则不启用、不声明 `stableMemberOrder`。文件只保存公钥与编号、房间实例、描述符摘要及保留期限，不保存聊天、私钥或票据；公钥身份信息仍应作为私有运维数据处理。
+
+新身份登记和恢复凭据续期都在确认前同步落盘：私有临时文件、文件 fsync、原子替换，Unix 另同步目录。Windows 验收覆盖进程崩溃恢复；Go 的可移植 Windows 文件接口不保证断电时目录替换的持久性。同一文件只供一个 relay 进程使用。每房间最多登记 4096 个历史身份，最多保留 8192 个房间实例，序列化文件不超过 32 MiB；达到上限拒绝操作，不丢弃编号。首版通过同步全量快照保证确认前持久化，吞吐需要按实际节点测量。
+
+文件不存在时初始化空状态，无法找到原记录的恢复请求会失败；已有文件损坏或不可读则拒绝启动。保留原 TICKET_KEY、服务 origin 和持久卷。仅在房间已不存在且所有已签发恢复票据过期后清理记录。房间描述符与消息仍需客户端恢复及同步。不能把旧备份直接当作在线回滚：旧状态可能缺少已确认编号，使用前必须作废受影响房间及票据。
+
+发布方式：relay、SDK 和网站按当前版本统一升级；排空旧房间，准备持久卷并配置 MEMBER_STATE_FILE，再发布 relay、SDK 和网站。不要给无法追溯原始顺序的旧房间热启用编号。观察 member_capacity、member_state_write_failed、member_state_unavailable 错误及磁盘用量。本地通过不代表公共节点已部署。

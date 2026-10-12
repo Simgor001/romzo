@@ -2,18 +2,18 @@
 
 English: [README.md](README.md)
 
-基于房间（room）的不透明 WebSocket 中继，附带零运行时依赖的 TypeScript SDK。中继负责房间注册、签名票据（ticket）、频道（channel）成员管理与有界转发；加密、游戏规则、持久化、重连与历史同步由应用负责。
+基于房间（room）的不透明 WebSocket 中继，附带支持移动浏览器的 TypeScript SDK。中继负责房间注册、签名票据（ticket）、频道（channel）成员管理与有界转发；加密、游戏规则、持久化、重连与历史同步由应用负责。
 
-服务端版本：**1.3.1**。SDK：**romzo 0.3.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
+服务端版本：**1.4.0**。SDK：**romzo 0.4.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
 
 ## 组件
 
-源码待发布更新：公共中继支持 `CLIENT_ORIGINS=*`，管理接口独立使用 `ADMIN_ORIGINS`；SDK 续约等待恢复票据持久化，回调失败通过有时限的请求错误报告。已发布的 1.3.0 镜像及 npm 0.3.0 尚不包含本次源码更新。
+1.4.0 新增：可插拔建房真人校验——`CREATE_AUTH=turnstile`、`oauth` 或组合 `turnstile+oauth`——统一兑换为 relay 签名、一次性、绑定建房公钥的 grant；Turnstile 校验固定 siteverify 的 hostname；内置通用 OAuth2 客户端（GitHub、itch.io、OIDC 提供方）签发的 grant 携带登录名作为配额主体，接入 OAuth 的节点即私服。SDK 自动通过验证弹窗完成 token 兑换与登录回跳。
 
 | 组件 | 路径 | 说明 |
 | --- | --- | --- |
 | 中继服务端 | `relay` | 房间注册、签名票据、频道成员管理与有界转发。 |
-| TypeScript SDK | `packages/romzo-client` | 零运行时依赖的客户端 SDK。 |
+| TypeScript SDK | `packages/romzo-client` | 带 Ed25519 兼容实现的客户端 SDK。 |
 | 协议 | `protocol/` | WebSocket 规范、HTTP OpenAPI 与共享测试向量。 |
 | 部署配置 | `deploy/` | Docker、环境模板与反向代理示例。 |
 | 文档 | `docs/` | 部署、架构与发布指南。 |
@@ -53,7 +53,7 @@ await session.subscribe('table');
 
 在本工作区用 `npm run build` 构建 SDK。
 
-邀请格式为 `https://client/#ABCD123XYZ@relay.example.com`：省略端口 = 服务默认端口 443，因此其他端口的中继必须显式写出，如 `@relay.example.com:9224`。口令、私钥与恢复票据不得进入 URL。
+邀请格式为 `https://client/#ABCD123XYZ/relay.example.com`：省略端口 = 服务默认端口 443，因此其他端口的中继必须显式写出，如 `/relay.example.com:9224`。口令、私钥与恢复票据不得进入 URL。
 
 应用消费并清除 fragment，并负责浏览器历史恢复。SDK 只对回环地址放行 http；生产中继源站必须是 HTTPS。
 
@@ -67,6 +67,14 @@ await session.subscribe('table');
 | 重连 | opt-in（`autoReconnect`） | 默认关闭；开启后 SDK 自动重握手并重新订阅频道，信封层历史同步仍由应用负责（见 SDK 文档）。 |
 
 ## 开发
+
+`npm run test:mobile` 使用 Chromium 与 WebKit 手机配置验证体验页。
+若要在已连接的 Android 模拟器内使用 Chrome，先执行
+`adb -s <设备序列号> shell am set-debug-app --persistent com.android.chrome`，
+将环境变量 `ROMZO_ANDROID_SERIAL` 设置为该序列号，再运行 `npm run test:mobile`。
+Android 模式运行设备内的浏览器，测试结束后移除临时 `adb reverse` 端口。
+两种模式均连接真实本地 Go 中继，Turnstile 使用测试替身；不代表公网验证码或 WSS 验收。
+调试完成后执行 `adb -s <设备序列号> shell am clear-debug-app` 清理模拟器的调试设置。
 
 verify 依次检查：公共文件边界与可达 Git 历史、SDK 单元测试与类型、Go 测试与竞态测试、共享协议向量、`openapi.yaml`（HTTP 面的唯一信源，契约测试校验端点覆盖）、SDK 构建，以及一次真实本地中继集成。
 
@@ -83,7 +91,7 @@ verify 依次检查：公共文件边界与可达 Git 历史、SDK 单元测试�
 | HTTP OpenAPI | [protocol/openapi.yaml](protocol/openapi.yaml) | HTTP 面的唯一信源。 |
 | WebSocket 协议 | [protocol/FRAMES_zh.md](protocol/FRAMES_zh.md) | |
 | 架构指南 | [docs/architecture_zh.md](docs/architecture_zh.md) | 应用职责与恢复边界。 |
-| 示例 | [examples/](examples/) | 直连真实中继的最小浏览器（`examples/browser/`）与 Node.js（`examples/node/`）聊天客户端。 |
+| 示例 | [examples/node/](examples/node/) | 直连真实中继的最小 Node.js 聊天客户端；浏览器演示统一使用官网的 [在线体验](website/play.html)。 |
 | 安全说明 | [SECURITY_zh.md](SECURITY_zh.md) | |
 
 ## 许可

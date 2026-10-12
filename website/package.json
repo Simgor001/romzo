@@ -4,6 +4,6 @@
   "private": true,
   "description": "Romzo project website: homepage and SDK reference.",
   "scripts": {
-    "dev": "node server.js --port 7100 --host 127.0.0.1"
+    "dev": "node ../scripts/build-website.mjs && node server.js --port 7100 --host 127.0.0.1"
   }
 }

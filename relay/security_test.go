@@ -222,15 +222,18 @@ func turnstileHarness(t *testing.T, behavior string) (*Server, *httptest.Server,
 			w.WriteHeader(http.StatusInternalServerError)
 		default:
 			if r.Form.Get("response") == "good-token" {
-				_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
+				_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "hostname": "127.0.0.1", "action": "create-room"})
 			} else {
 				_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error-codes": []string{"invalid-input-response"}})
 			}
 		}
 	}))
 	cfg := testConfig()
+	cfg.Auth = "turnstile"
+	cfg.GrantKey = bytes.Repeat([]byte{9}, 32)
 	cfg.TurnstileSecret = "test-turnstile-secret"
 	cfg.TurnstileURL = verify.URL
+	cfg.TurnstileHostnames = []string{"127.0.0.1"}
 	return newServer(cfg), verify, &calls
 }
 
@@ -321,6 +324,11 @@ func TestCreateAuthOffAndTurnstileConfig(t *testing.T) {
 		t.Fatal("off mode installed a password authorizer")
 	}
 	t.Setenv("TURNSTILE_SECRET", "test-only-turnstile-secret")
+	if _, e := config(); e == nil {
+		t.Fatal("TURNSTILE_SECRET without turnstile in CREATE_AUTH accepted")
+	}
+	t.Setenv("CREATE_AUTH", "turnstile")
+	t.Setenv("GRANT_KEY", strings.Repeat("ef", 32))
 	t.Setenv("TURNSTILE_VERIFY_URL", "://malformed")
 	if _, e := config(); e == nil {
 		t.Fatal("malformed TURNSTILE_VERIFY_URL accepted")
@@ -329,6 +337,9 @@ func TestCreateAuthOffAndTurnstileConfig(t *testing.T) {
 	c, e = config()
 	if e != nil || c.TurnstileURL != "https://challenges.cloudflare.com/turnstile/v0/siteverify" {
 		t.Fatal("default siteverify URL not applied")
+	}
+	if len(c.TurnstileHostnames) != 1 || c.TurnstileHostnames[0] != "127.0.0.1" {
+		t.Fatal("origin hostname not used as the default Turnstile hostname whitelist")
 	}
 }
 

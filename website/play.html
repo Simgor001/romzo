@@ -4,14 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Romzo — Playground</title>
-<meta name="description" content="Create a live Romzo room in the browser and exchange messages over the public relay.">
+<meta name="description" content="Create a live Romzo room and exchange messages over RTC when available, with relay fallback.">
 <link rel="icon" type="image/svg+xml" href="romzo-icon.svg">
 <link rel="stylesheet" href="style.css">
-<script type="importmap">
-{ "imports": { "romzo": "https://cdn.jsdelivr.net/npm/romzo@0.3.0/+esm" } }
-</script>
-
-
 </head>
 <body class="play-page">
 
@@ -44,8 +39,8 @@
     <div>
       <h1 class="l-en">Playground</h1>
       <h1 class="l-zh">在线体验</h1>
-      <p class="l-en">Create a room, share an invite, and exchange messages over the public relay.</p>
-      <p class="l-zh">创建房间，分享邀请，在公共中继上互发消息。</p>
+      <p class="l-en">A small room for a conversation. Create one, invite a friend, and say hello.</p>
+      <p class="l-zh">建一个小房间，邀请朋友，聊几句。</p>
       <a href="sdk.html" class="play-doc-link"><span class="l-en">SDK documentation →</span><span class="l-zh">查看 SDK 文档 →</span></a>
     </div>
     <div id="node-panel" class="play-node"></div>
@@ -72,18 +67,29 @@
       <form id="join-panel" hidden>
         <label class="l-en play-label" for="join-code">Room code or invite</label>
         <label class="l-zh play-label" for="join-code">房间号或邀请</label>
-        <input class="play-input" id="join-code" type="text" maxlength="2048" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="THYB5YDPZQ" aria-describedby="join-hint" required>
+        <div class="play-join-input">
+          <input class="play-input" id="join-code" type="text" maxlength="2048" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="THYB5YDPZQ" aria-describedby="join-hint" required>
+          <button class="play-scan-trigger" id="scan-join" type="button" aria-label="Scan QR / 扫码加入" title="Scan QR / 扫码加入">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><path d="M7 7h3v3H7zM14 7h3v3h-3zM7 14h3v3H7zM14 14h3v3h-3z"/></svg>
+          </button>
+        </div>
         <p id="join-hint" class="play-hint"><span class="l-en">Enter a room code or paste an invite link.</span><span class="l-zh">输入房间号，或粘贴邀请链接。</span></p>
         <button class="btn primary" id="join" type="submit"><span class="l-en">Join room</span><span class="l-zh">加入房间</span></button>
         <p id="join-error" class="play-form-error" role="alert" hidden></p>
       </form>
       <div id="create-result" hidden>
-        <div class="play-room-code"><span class="l-en">Room code</span><span class="l-zh">房间代码</span><strong class="l-en" id="room-code"></strong><strong class="l-zh" id="room-code-zh"></strong></div>
-        <p class="play-hint l-en">Open this invite in another browser, or share it with a friend.</p>
-        <p class="play-hint l-zh">在另一个浏览器打开邀请，或把链接发给朋友。</p>
-        <p class="invite-box" id="invite-link"></p>
-        <button class="btn ghost" id="copy-code" type="button"><span class="l-en">Copy code</span><span class="l-zh">复制房间号</span></button>
-        <button class="btn ghost" id="copy-invite" type="button"><span class="l-en">Copy invite</span><span class="l-zh">复制邀请</span></button>
+        <div class="play-room-code"><span><span class="l-en">Room code</span><span class="l-zh">房间号</span></span><strong><span class="l-en" id="room-code"></span><span class="l-zh" id="room-code-zh"></span></strong></div>
+        <figure class="play-qr">
+          <img id="invite-qr" width="184" height="184" alt="Room invitation QR code / 房间邀请二维码">
+          <figcaption><span class="l-en">Scan with your phone to join</span><span class="l-zh">用手机扫一扫，就能加入</span></figcaption>
+        </figure>
+        <div class="play-invite-actions">
+          <button class="btn primary" id="copy-invite" type="button"><span class="l-en">Copy invite</span><span class="l-zh">复制邀请链接</span></button>
+          <button class="btn ghost" id="copy-code" type="button"><span class="l-en">Copy code</span><span class="l-zh">复制房间号</span></button>
+        </div>
+        <p id="room-feedback" class="play-hint play-feedback" role="status"></p>
+        <details class="play-invite-details"><summary><span class="l-en">Invitation link</span><span class="l-zh">查看邀请链接</span></summary><p class="invite-box" id="invite-link"></p></details>
+        <button class="play-leave" id="leave-room" type="button"><span class="l-en">Leave room</span><span class="l-zh">退出房间</span></button>
       </div>
     </div>
   </section>
@@ -94,11 +100,12 @@
       <h2 id="chat-title"><span class="l-en">Exchange messages</span><span class="l-zh">互发消息</span></h2>
       <span class="grow"></span><span class="play-presence" id="connection-badge" data-state="idle"><span class="l-en">Not connected</span><span class="l-zh">未连接</span></span>
     </div>
-    <div class="play-log" id="log" role="log" aria-live="polite" aria-labelledby="chat-title"><div class="play-empty"><span class="l-en">Messages will appear here after you create or join a room.</span><span class="l-zh">创建或加入房间后，消息会显示在这里。</span></div></div>
+    <ul class="play-paths" id="transport-paths" aria-label="Peer transport paths / 成员传输路径" hidden></ul>
+    <div class="play-log" id="log" role="log" aria-live="polite" aria-labelledby="chat-title"><div class="play-empty"><div><span class="play-empty-mark" aria-hidden="true">···</span><span class="l-en">Your conversation starts here.</span><span class="l-zh">从一句「你好」开始。</span><small><span class="l-en">Create a room or join a friend's invitation.</span><span class="l-zh">先创建房间，或加入朋友的邀请。</span></small></div></div></div>
     <div class="play-compose">
       <label class="visually-hidden l-en" for="message">Message</label>
       <label class="visually-hidden l-zh" for="message">消息</label>
-      <input class="play-input" id="message" type="text" maxlength="512" autocomplete="off" placeholder="…" disabled>
+      <textarea class="play-input" id="message" rows="1" maxlength="512" autocomplete="off" placeholder="…" disabled></textarea>
       <button class="btn primary" id="send" type="button" disabled><span class="l-en">Send</span><span class="l-zh">发送</span></button>
     </div>
     <div class="play-status" role="status">
@@ -107,6 +114,14 @@
     </div>
   </section>
 </main>
+
+<dialog id="scan-dialog" class="play-scan-dialog" aria-labelledby="scan-title">
+  <div class="play-scan-head"><h2 id="scan-title"><span class="l-en">Scan a room invitation</span><span class="l-zh">扫描房间邀请</span></h2><button class="play-scan-close" id="scan-close" type="button" aria-label="Close / 关闭">×</button></div>
+  <video id="scan-video" muted playsinline></video>
+  <p class="play-hint"><span class="l-en">Point your camera at a room QR code. You can also choose a photo.</span><span class="l-zh">将摄像头对准房间二维码，也可以选择二维码图片。</span></p>
+  <p id="scan-status" class="play-form-error" role="status"></p>
+  <label class="btn ghost play-file-button" for="scan-image"><span class="l-en">Choose QR image</span><span class="l-zh">选择二维码图片</span><input class="visually-hidden" id="scan-image" type="file" accept="image/*"></label>
+</dialog>
 
 <footer>
   <div class="wrap foot-grid">
@@ -125,7 +140,8 @@
 
 <script src="site.js"></script>
 <script type="module">
-import { createRoom, joinRoom, RelaySession, buildInviteLink, parseInviteHash } from 'romzo';
+import { createRoom, joinRoom, MeshSession, buildInviteLink, parseInviteHash } from './sdk/romzo.js?v=mesh-2';
+import { renderInviteQr, scanInviteCamera, readInviteQrFile } from './sdk/qr.js?v=invite-1';
 
 const ORIGIN = 'https://romzo.net';
 const CHANNEL = 'lobby';
@@ -133,6 +149,10 @@ const inviteOptions = { allowLoopbackHttp: location.protocol === 'http:' && ['lo
 const logEl = document.getElementById('log');
 const statusEls = [document.getElementById('role-status'), document.getElementById('role-status-zh')];
 let session = null;
+const emptyLog = logEl.firstElementChild.cloneNode(true);
+let currentCode = '';
+let scanController = null;
+let scanEpoch = 0;
 let widgetId = null;
 let turnstileLoad = null;
 function loadTurnstile() {
@@ -178,7 +198,7 @@ async function verificationToken() {
 }
 
 const peers = new Set();
-const peerNames = new Map();
+
 let connected = false;
 function bilingual(en, zh) {
   const span = document.createElement('span');
@@ -196,11 +216,14 @@ function appendLog(node) {
 function systemMessage(en, zh) {
   const row = document.createElement('div'); row.className = 'play-system'; row.append(bilingual(en, zh)); appendLog(row);
 }
-function message(text, mine, peer) {
+function message(text, mine, joinSeq) {
+  if (!Number.isSafeInteger(joinSeq) || joinSeq < 1) {
+    systemMessage('Message rejected: the relay did not supply a member number.', '消息已拒绝：中继未提供成员编号。');
+    return;
+  }
   const row = document.createElement('div'); row.className = 'play-message ' + (mine ? 'is-mine' : 'is-peer');
   const meta = document.createElement('div'); meta.className = 'play-message-meta';
-  if (!mine && !peerNames.has(peer)) peerNames.set(peer, peerNames.size + 1);
-  meta.append(bilingual(mine ? 'You' : 'Participant ' + peerNames.get(peer), mine ? '你' : '参与者 ' + peerNames.get(peer)));
+  meta.append(bilingual((mine ? 'You · ' : '') + 'Participant ' + joinSeq, (mine ? '你 · ' : '') + '参与者 ' + joinSeq));
   const time = document.createElement('time'); time.dateTime = new Date().toISOString(); meta.append(time);
   const body = document.createElement('p'); body.className = 'play-message-body'; body.textContent = text;
   row.append(meta, body); appendLog(row); refreshLanguage();
@@ -210,43 +233,96 @@ function refreshLanguage() {
   document.getElementById('message').placeholder = zh ? '输入消息…' : 'Type a message…';
   for (const time of logEl.querySelectorAll('time')) time.textContent = new Date(time.dateTime).toLocaleTimeString(zh ? 'zh-CN' : 'en-GB', {hour: '2-digit', minute: '2-digit'});
 }
+function updateComposer() {
+  document.getElementById('message').disabled = !connected;
+  document.getElementById('send').disabled = !connected || sending || !document.getElementById('message').value.trim();
+}
 new MutationObserver(refreshLanguage).observe(document.documentElement, {attributes: true, attributeFilter: ['data-lang']});
 refreshLanguage();
 function updatePresence() {
   const badge = document.getElementById('connection-badge');
   badge.dataset.state = connected ? 'online' : 'idle';
-  badge.replaceChildren(bilingual(connected ? (peers.size + 1) + ' online' : 'Not connected', connected ? (peers.size + 1) + ' 人在线' : '未连接'));
+  const roster = session?.members(CHANNEL) ?? [];
+  const count = session ? new Set([session.key, ...roster.map(member => member.key)]).size : 0;
+  badge.replaceChildren(bilingual(connected ? count + ' online' : 'Not connected', connected ? count + ' 人在线' : '未连接'));
+  renderPaths();
   if (!connected) return;
-  if (peers.size) setStatus('Connected · Enter to send', '已连接 · 按 Enter 发送');
+  if (peers.size) setStatus('Enter to send · Shift+Enter for a new line', 'Enter 发送 · Shift+Enter 换行');
   else setStatus('Waiting for someone to join · Share your invite', '等待其他人加入 · 可分享邀请链接');
+}
+function renderPaths() {
+  const list = document.getElementById('transport-paths');
+  list.replaceChildren();
+  for (const member of session?.members(CHANNEL) ?? []) {
+    if (member.peer === session.id) continue;
+    const row = document.createElement('li');
+    const number = member.joinSeq;
+    row.append(bilingual('Participant ' + number, '参与者 ' + number));
+    const path = typeof session.path === 'function' ? session.path(member.peer) ?? 'relay' : 'relay';
+    const badge = document.createElement('span'); badge.className = 'play-path'; badge.dataset.path = path;
+    badge.append(bilingual(path === 'rtc' ? 'RTC' : path === 'connecting' ? 'Connecting' : 'Relay', path === 'rtc' ? 'RTC' : path === 'connecting' ? '协商中' : '中继'));
+    row.append(badge); list.append(row);
+  }
+  list.hidden = !list.children.length;
 }
 function setStatus(en, zh) {
   statusEls[0].textContent = en; statusEls[1].textContent = zh;
 }
 function socketFactory(url) { return new WebSocket(url); }
 const wsUrl = ORIGIN.replace(/^http/, 'ws') + '/ws';
-const roomOptions = { app: 'romzo-playground', channels: [{ name: CHANNEL, maxFrameBytes: 16384 }] };
+const roomOptions = { app: 'romzo-playground', channels: [{ name: CHANNEL, maxFrameBytes: 16384 }, { name: 'signal', maxFrameBytes: 16384 }] };
 
-async function openSession(admission, transport) {
-  session = await RelaySession.connect(wsUrl, admission, transport, { webSocketFactory: socketFactory });
-  session.on('receive', (value, {peer}) => {
-    if (typeof value?.text === 'string') message(value.text, false, peer);
+async function openSession(admission, transport, signedDescriptor) {
+  const options = { webSocketFactory: socketFactory, autoReconnect: { signedDescriptor } };
+  session = await MeshSession.connect(wsUrl, admission, transport, options, { signedDescriptor, onPath: renderPaths });
+  if (!Number.isSafeInteger(session.joinSeq) || session.joinSeq < 1) {
+    session.close(); session = null;
+    throw Object.assign(new Error('relay member numbering required'), { code: 'member_numbering_required' });
+  }
+  const active = session;
+  logEl.replaceChildren(emptyLog.cloneNode(true));
+  function listen(event, handler) { active.on(event, (...args) => { if (session === active) handler(...args); }); }
+  listen('members', () => {
+    peers.clear();
+    for (const member of session.members(CHANNEL)) if (member.peer !== session.id) peers.add(member.peer);
+    updatePresence();
+  });
+  listen('receive', (value, {joinSeq, channel}) => {
+    if (channel !== CHANNEL) return;
+    if (typeof value?.text === 'string') message(value.text, false, joinSeq);
     else systemMessage('Received an unsupported message', '收到不支持的消息');
   });
-  session.on('join', (_p, {peer}) => { peers.add(peer); systemMessage('Someone joined', '有人加入了房间'); updatePresence(); });
-  session.on('leave', (_p, {peer}) => { peers.delete(peer); systemMessage('Someone left', '有人离开了房间'); updatePresence(); });
-  session.on('close', () => {
-    document.getElementById('message').disabled = true;
-    document.getElementById('send').disabled = true;
-    setStatus('Disconnected. Reload to join again.', '连接已断开，刷新页面重新加入。');
-    connected = false; peers.clear(); updatePresence();
+  listen('join', (_p, {peer, joinSeq}) => { peers.add(peer); systemMessage('Participant ' + joinSeq + ' joined', '参与者 ' + joinSeq + ' 加入了房间'); updatePresence(); });
+  listen('leave', (_p, {peer, joinSeq}) => { peers.delete(peer); systemMessage('Participant ' + joinSeq + ' left', '参与者 ' + joinSeq + ' 离开了房间'); updatePresence(); });
+  listen('close', () => {
+    const code = currentCode; session = null; resetRoom(false); roomMode('join');
+    document.getElementById('join-code').value = code;
+    setStatus('Disconnected. You can join again.', '连接已断开，可以重新加入。');
     systemMessage('Connection closed', '连接已断开');
   });
-  try { await session.subscribe(CHANNEL); }
+  listen('reconnecting', () => {
+    connected = false; peers.clear(); updatePresence();
+    updateComposer();
+    setStatus('Reconnecting…', '正在重新连接…');
+  });
+  listen('reconnect', () => {
+    connected = true; updatePresence();
+    updateComposer();
+    systemMessage('Reconnected', '已重新连接');
+  });
+  try { await session.subscribe(CHANNEL); await session.keepalive(); }
   catch (error) { session.close(); session = null; throw error; }
-  document.getElementById('message').disabled = false;
-  document.getElementById('send').disabled = false;
-  connected = true; updatePresence();
+  connected = true; updatePresence(); updateComposer();
+}
+
+function failureDetail(error) {
+  if (error?.code === 'member_numbering_required') return { en: 'Upgrade the relay and enable durable member numbering before using this playground.', zh: '请先升级中继并启用持久成员编号，再使用在线体验。' };
+  if (error?.code === 'missing_signal_channel') return { en: 'This room lacks the required signal channel. Create a new room with the current version.', zh: '此房间缺少新版要求的 signal 频道，请使用新版重新建房。' };
+  if (!globalThis.crypto?.subtle) return { en: 'Open the HTTPS link in your browser.', zh: '请在浏览器中打开 HTTPS 链接。' };
+  if (/verification/i.test(error?.message || '')) return { en: 'Verification failed to load or complete. Try opening this link in your browser.', zh: '验证未能加载或完成，请尝试在浏览器中打开链接。' };
+  if (error instanceof TypeError) return { en: 'Check your network connection and retry.', zh: '请检查网络连接后重试。' };
+  const code = typeof error?.code === 'string' ? error.code : '';
+  return { en: code ? 'Relay error: ' + code : '', zh: code ? '中继错误：' + code : '' };
 }
 
 // Host flow
@@ -260,12 +336,14 @@ document.getElementById('create').addEventListener('click', async () => {
     const token = await verificationToken();
     const room = await createRoom(ORIGIN, roomOptions, { turnstileToken: token });
     const invite = buildInviteLink(ORIGIN, room.descriptor.code, new URL('play.html', location.href).href.split('#')[0], inviteOptions);
-    await openSession(room.admission, room.transport);
+    await openSession(room.admission, room.transport, room.signedDescriptor);
     showRoom(room.descriptor.code, invite);
     systemMessage('Room created · Share your invite to start', '房间已创建 · 分享邀请即可开始');
     updatePresence();
+    document.getElementById('copy-invite').focus({ preventScroll: true });
   } catch (e) {
-    systemMessage('Could not create the room. Please try again.', '创建房间失败，请重试。');
+    const detail = failureDetail(e);
+    systemMessage('Could not create the room. ' + detail.en, '创建房间失败。' + detail.zh);
     setStatus('Room creation failed. Try again.', '创建失败，请重试。');
   } finally {
     if (widgetId !== null) {
@@ -277,40 +355,51 @@ document.getElementById('create').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('copy-invite').addEventListener('click', async () => {
-  const link = document.getElementById('invite-link').textContent;
-  try { await navigator.clipboard.writeText(link); systemMessage('Invite copied', '邀请链接已复制'); }
-  catch { systemMessage('Copy failed. Select the link to copy it manually.', '复制失败，请手动选中链接复制。'); }
-});
+async function copyValue(value) {
+  const feedback = document.getElementById('room-feedback');
+  try { await navigator.clipboard.writeText(value); feedback.dataset.state = 'success'; feedback.replaceChildren(bilingual('Copied', '已复制')); }
+  catch {
+    feedback.dataset.state = 'error';
+    document.querySelector('.play-invite-details').open = true;
+    feedback.replaceChildren(bilingual('Select the code or link to copy it.', '请选中房间号或链接手动复制。'));
+  }
+}
+document.getElementById('copy-invite').addEventListener('click', () => void copyValue(document.getElementById('invite-link').textContent));
 
 let sending = false;
+document.getElementById('message').addEventListener('input', updateComposer);
 document.getElementById('send').addEventListener('click', async () => {
   const input = document.getElementById('message');
   const value = input.value.trim();
   if (!value) return;
   if (!connected || sending) return;
+  const active = session;
   sending = true;
   document.getElementById('send').disabled = true;
   try {
-    await session.send(CHANNEL, { text: value });
-    message(value, true);
+    await active.send(CHANNEL, { text: value });
+    if (session !== active) return;
+    message(value, true, active.joinSeq);
     if (input.value.trim() === value) input.value = '';
   } catch (e) {
-    systemMessage('Message was not sent. Please try again.', '消息未发送成功，请重试。');
+    if (session === active) {
+      const detail = failureDetail(e);
+      systemMessage('Message was not sent. ' + (detail.en || 'Please try again.'), '消息未发送成功。' + (detail.zh || '请重试。'));
+    }
   } finally {
     sending = false;
-    document.getElementById('send').disabled = !connected;
+    updateComposer();
   }
 });
 document.getElementById('message').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.isComposing) document.getElementById('send').click();
+  if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) { e.preventDefault(); document.getElementById('send').click(); }
 });
 
 // Both manual codes and URL invitations use the same admission flow.
 let roomBusy = false;
 function setRoomBusy(busy) {
   roomBusy = busy;
-  for (const id of ['create', 'join', 'mode-create', 'mode-join', 'join-code']) document.getElementById(id).disabled = busy || !!session;
+  for (const id of ['create', 'join', 'mode-create', 'mode-join', 'join-code', 'scan-join']) document.getElementById(id).disabled = busy || !!session;
 }
 function roomMode(mode) {
   if (roomBusy || session) return;
@@ -330,19 +419,37 @@ function parseRoomInput(input) {
   }
   const bare = value.replace(/^#/, '').replace(/[\s-]/g, '').toUpperCase();
   if (/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{10}$/.test(bare)) return bare;
-  value = value.replace(/^#?([^@]+)@/, (_, code) => '#' + code.replace(/[\s-]/g, '').toUpperCase() + '@');
+  value = value.replace(/^#?([^/@]+)([/@])/, (_, code, separator) => '#' + code.replace(/[\s-]/g, '').toUpperCase() + separator);
   const parsed = parseInviteHash(value, inviteOptions);
   if (!parsed) throw Error('invalid-room');
   if (parsed.origin !== ORIGIN) throw Error('other-relay');
   return parsed.code;
 }
 function showRoom(code, invite = buildInviteLink(ORIGIN, code, new URL('play.html', location.href).href.split('#')[0], inviteOptions)) {
+  currentCode = code;
   document.getElementById('room-code').textContent = code;
   document.getElementById('room-code-zh').textContent = code;
   document.getElementById('invite-link').textContent = invite;
+  document.getElementById('invite-qr').src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(renderInviteQr(invite, inviteOptions));
+  history.replaceState(null, '', new URL(invite).hash);
   for (const id of ['create-panel', 'join-panel', 'room-modes']) document.getElementById(id).hidden = true;
   document.getElementById('create-result').hidden = false;
 }
+function resetRoom(clearLog = true) {
+  stopScan(); connected = false; currentCode = ''; peers.clear(); sending = false;
+  document.getElementById('create-result').hidden = true;
+  document.getElementById('room-modes').hidden = false;
+  document.getElementById('invite-qr').removeAttribute('src');
+  document.getElementById('room-feedback').replaceChildren();
+  document.getElementById('message').value = '';
+  if (clearLog) logEl.replaceChildren(emptyLog.cloneNode(true));
+  history.replaceState(null, '', location.pathname + location.search);
+  setRoomBusy(false); updatePresence(); updateComposer();
+}
+document.getElementById('leave-room').addEventListener('click', () => {
+  const active = session; session = null; active?.close(); resetRoom(); roomMode('create');
+  setStatus('You left the room. Create or join another.', '已退出房间，可以创建或加入其他房间。');
+});
 async function joinInput(value) {
   if (roomBusy || session) return;
   const error = document.getElementById('join-error'); error.hidden = true;
@@ -351,22 +458,66 @@ async function joinInput(value) {
     setRoomBusy(true);
     setStatus('Joining room…', '正在加入房间…');
     const guest = await joinRoom(ORIGIN, code);
-    await openSession(guest.admission, guest.transport);
+    await openSession(guest.admission, guest.transport, guest.signedDescriptor);
     showRoom(code);
     systemMessage('Joined the room', '已加入房间');
     updatePresence();
+    document.getElementById('message').focus();
   } catch (e) {
     const en = e.message === 'other-relay' ? 'This playground only joins rooms on the current relay.' : e.message === 'invalid-room' ? 'Enter a valid 10-character room code or invite.' : 'Could not join. Check the room code and try again.';
     const zh = e.message === 'other-relay' ? '此体验页仅支持当前中继上的房间。' : e.message === 'invalid-room' ? '请输入有效的 10 位房间号或邀请。' : '加入失败，请检查房间号后重试。';
-    error.replaceChildren(bilingual(en, zh)); error.hidden = false;
+    const detail = failureDetail(e);
+    error.replaceChildren(bilingual(en + ' ' + detail.en, zh + ' ' + detail.zh)); error.hidden = false;
     setStatus('Not connected · Try another code', '未连接 · 请检查房间号');
   } finally { setRoomBusy(false); }
 }
 document.getElementById('join-panel').addEventListener('submit', event => { event.preventDefault(); void joinInput(document.getElementById('join-code').value); });
-document.getElementById('copy-code').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(document.getElementById('room-code').textContent); systemMessage('Room code copied', '房间号已复制'); }
-  catch { systemMessage('Copy failed. Select the code to copy it manually.', '复制失败，请手动选中房间号复制。'); }
+document.getElementById('copy-code').addEventListener('click', () => void copyValue(document.getElementById('room-code').textContent));
+
+function qrFailure(error) {
+  const code = error?.code;
+  if (code === 'camera_denied') return bilingual('Camera permission was denied. Choose a QR image instead.', '未获得摄像头权限，可以选择二维码图片。');
+  if (code === 'camera_unavailable') return bilingual('Camera unavailable. Use HTTPS or choose a QR image.', '摄像头不可用，请使用 HTTPS 或选择二维码图片。');
+  if (code === 'scan_timeout') return bilingual('No invitation found. Try again or choose an image.', '暂未识别到邀请，请重试或选择图片。');
+  return bilingual('No valid room invitation found. Check the QR code or enter the room code.', '没有识别到有效房间邀请，请检查二维码或输入房间号。');
+}
+function stopScan() {
+  scanEpoch++; scanController?.abort(); scanController = null;
+  const dialog = document.getElementById('scan-dialog'); if (dialog.open) dialog.close();
+}
+async function acceptScanned(address) {
+  stopScan();
+  await joinInput('#' + address.code + '/' + new URL(address.origin).host);
+}
+document.getElementById('scan-join').addEventListener('click', async () => {
+  if (roomBusy || session) return;
+  stopScan(); const epoch = scanEpoch;
+  const dialog = document.getElementById('scan-dialog'); document.getElementById('scan-status').replaceChildren(); dialog.showModal();
+  const controller = new AbortController(); scanController = controller;
+  try {
+    const address = await scanInviteCamera(document.getElementById('scan-video'), { ...inviteOptions, signal: controller.signal });
+    if (epoch === scanEpoch) await acceptScanned(address);
+  } catch (error) { if (epoch === scanEpoch && error?.code !== 'aborted') document.getElementById('scan-status').replaceChildren(qrFailure(error)); }
 });
+document.getElementById('scan-close').addEventListener('click', stopScan);
+document.getElementById('scan-dialog').addEventListener('cancel', event => { event.preventDefault(); stopScan(); });
+document.getElementById('scan-dialog').addEventListener('close', () => {
+  if (document.getElementById('scan-dialog').open) return;
+  scanController?.abort(); scanController = null; scanEpoch++;
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopScan(); });
+window.addEventListener('pagehide', stopScan);
+async function scanFile(input) {
+  const file = input.files?.[0]; input.value = ''; if (!file || roomBusy || session) return;
+  scanController?.abort(); scanController = null; const epoch = ++scanEpoch;
+  try { const address = await readInviteQrFile(file, inviteOptions); if (epoch === scanEpoch) await acceptScanned(address); }
+  catch (error) {
+    if (epoch !== scanEpoch) return;
+    const target = document.getElementById(document.getElementById('scan-dialog').open ? 'scan-status' : 'join-error');
+    target.replaceChildren(qrFailure(error)); target.hidden = false;
+  }
+}
+document.getElementById('scan-image').addEventListener('change', event => void scanFile(event.target));
 if (location.hash) {
   roomMode('join');
   document.getElementById('join-code').value = location.hash;

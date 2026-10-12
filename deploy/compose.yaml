@@ -8,7 +8,8 @@ services:
       - "127.0.0.1:9224:9224"
     restart: unless-stopped
     read_only: true
-    # Writable mount for METRICS_HISTORY_FILE (room history survives restarts).
+    # Writable mount for METRICS_HISTORY_FILE and MEMBER_STATE_FILE.
+    # Set MEMBER_STATE_FILE=/data/members.json after draining old rooms.
     # Host dir must be writable by uid 65532 (the container user).
     volumes:
       - /opt/romzo/data:/data

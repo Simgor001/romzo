@@ -2,22 +2,22 @@
 
 中文：[README_zh.md](README_zh.md)
 
-A room-based opaque WebSocket relay with a zero-runtime-dependency TypeScript SDK.
+A room-based opaque WebSocket relay with a mobile-compatible TypeScript SDK.
 The relay handles room registration, signed tickets, channel membership and bounded forwarding.
 Applications own encryption, rules, persistence, reconnection and history synchronization.
 
-Server release: **1.3.1**.
-SDK: **romzo 0.3.0**.
+Server release: **1.4.0**.
+SDK: **romzo 0.4.0**.
 Wire protocol: **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
 
-Released in 1.3.1: public relays support `CLIENT_ORIGINS=*`, with management access isolated by `ADMIN_ORIGINS`. Pending SDK release: renewal recovery persistence and bounded request-error reporting (npm 0.3.0 predates these client changes).
+Released in 1.4.0: pluggable creation attestation — `CREATE_AUTH=turnstile`, `oauth`, or `turnstile+oauth` — funneling into one relay-signed, single-use, host-key-bound grant. Turnstile verification now pins the siteverify hostname, and a built-in generic OAuth2 client (GitHub, itch.io, OIDC providers) issues grants carrying the login as quota subject, so an OAuth relay doubles as a private server. The SDK exchanges tokens/redirects automatically via a verification popup; released in 1.3.1: public relays support `CLIENT_ORIGINS=*`, with management access isolated by `ADMIN_ORIGINS`.
 
 | Component | Path | Description |
 | --- | --- | --- |
 | Relay server | `relay` | Room registration, signed tickets, channel membership and bounded forwarding. |
-| TypeScript SDK | `packages/romzo-client` | Zero-runtime-dependency client SDK. |
+| TypeScript SDK | `packages/romzo-client` | Client SDK with an Ed25519 compatibility fallback. |
 | Protocol | `protocol/` | WebSocket specification, HTTP OpenAPI and shared test vectors. |
 | Deployment | `deploy/` | Docker, environment template and reverse-proxy examples. |
 | Documentation | `docs/` | Deployment, architecture and release guides. |
@@ -59,7 +59,7 @@ await session.subscribe('table');
 
 Build the SDK from this workspace with `npm run build`.
 
-Invites use `https://client/#ABCD123XYZ@relay.example.com`:
+Invites use `https://client/#ABCD123XYZ/relay.example.com`:
 
 - An omitted port is the service default port 443; a relay on any other port must write it explicitly, e.g. `@relay.example.com:9224`.
 - Passwords, private keys and recovery tickets never belong in URLs.
@@ -77,6 +77,14 @@ The SDK allows http origins on loopback only; production relay origins must be H
 | Reconnection | opt-in (`autoReconnect`) | Off by default; when enabled the SDK re-handshakes and re-subscribes, while the application still owns envelope-layer history sync (see the SDK README). |
 
 ## Development
+
+`npm run test:mobile` exercises the playground with Chromium and WebKit phone profiles.
+To run the same flow in a connected Android emulator with Chrome, enable command-line debugging
+with `adb -s <serial> shell am set-debug-app --persistent com.android.chrome`, set
+`ROMZO_ANDROID_SERIAL` to that device serial, then run `npm run test:mobile`.
+The Android mode uses the device browser and temporary `adb reverse` ports, which are removed after the test.
+Both modes use a real local Go relay and a test substitute for Turnstile; they do not validate public CAPTCHA or WSS.
+Clear the emulator's debugging setting afterward with `adb -s <serial> shell am clear-debug-app`.
 
 `npm run verify` checks:
 
@@ -104,7 +112,7 @@ Public WSS, browser clients, real networks and multi-instance setups need their 
 | HTTP OpenAPI | [protocol/openapi.yaml](protocol/openapi.yaml) | Single source of truth for the HTTP surface. |
 | WebSocket protocol (FRAMES) | [protocol/FRAMES.md](protocol/FRAMES.md) | |
 | Architecture guide | [docs/architecture.md](docs/architecture.md) | Application responsibilities and recovery boundaries. |
-| Examples | [examples/](examples/) | Minimal browser (`examples/browser/`) and Node.js (`examples/node/`) chat clients against a live relay. |
+| Examples | [examples/node/](examples/node/) | Minimal Node.js chat client against a live relay. The browser demo is the website's [playground](website/play.html). |
 | Security guidance | [SECURITY.md](SECURITY.md) | |
 
 ## License

@@ -1,0 +1,56 @@
+{
+  "description": "Public deterministic member-order extension frames; no secrets.",
+  "frames": [
+    {
+      "v": "romzo/v1",
+      "kind": "authenticated",
+      "id": "11111111111111111111111111111111",
+      "key": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "joinSeq": 1
+    },
+    {
+      "v": "romzo/v1",
+      "kind": "ack",
+      "id": "1",
+      "channel": "chat",
+      "value": {
+        "members": [
+          {
+            "peer": "11111111111111111111111111111111",
+            "key": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "joinSeq": 1
+          },
+          {
+            "peer": "22222222222222222222222222222222",
+            "key": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+            "joinSeq": 2
+          },
+          {
+            "peer": "23232323232323232323232323232323",
+            "key": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+            "joinSeq": 2
+          }
+        ]
+      }
+    },
+    {
+      "v": "romzo/v1",
+      "kind": "receive",
+      "channel": "chat",
+      "peer": "22222222222222222222222222222222",
+      "key": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "joinSeq": 2,
+      "value": {
+        "text": "public fixture"
+      }
+    },
+    {
+      "v": "romzo/v1",
+      "kind": "leave",
+      "channel": "chat",
+      "peer": "22222222222222222222222222222222",
+      "key": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "joinSeq": 2
+    }
+  ]
+}

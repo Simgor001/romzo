@@ -4,8 +4,103 @@ English: [README.md](README.md)
 
 Romzo 客户端 SDK — 「房间型不透明中继」（room-based opaque WebSocket relay，`romzo/v1` 协议）的独立客户端实现。
 
-零运行时依赖。
-仅使用全局 `crypto.subtle`（WebCrypto）与全局 `WebSocket`（浏览器 / Node 22+）。
+使用 Web Crypto 与 WebSocket（HTTPS 浏览器 / Node 22+），缺少原生 Ed25519 时使用 `@noble/curves` 兼容实现。密钥持久化请使用 `exportPrivateKey` 与 `importKeyPair`；兼容密钥是不透明句柄。
+
+## 可选邀请二维码
+
+二维码功能从 `romzo/qr` 导入，不在根入口重新导出；普通 SDK 打包不会带入
+生成器或摄像头辅助代码。固定使用零自身依赖的 `qr@0.7.2`，esbuild 压缩加
+gzip 实测：生成器 6.5 KiB、软件解码器 16.8 KiB。解码器仅在识别图片或
+摄像头软件回退时动态加载。
+
+```ts
+import { buildInviteLink } from "romzo";
+import { renderInviteQr, scanInviteCamera, readInviteQrFile } from "romzo/qr";
+const invite = buildInviteLink(origin, code, "https://game.example/");
+const svg = renderInviteQr(invite); // 编码完整邀请，不只编码房间号
+const controller = new AbortController();
+const address = await scanInviteCamera(video, { signal: controller.signal });
+// 检查 address.origin 符合应用的中继策略，再申请 admission。
+// 关闭扫描界面时调用 controller.abort()。
+// 图片回退：await readInviteQrFile(file)。
+```
+
+`renderInviteQr` 输出黑白 SVG，包含四模块留白和不透明白底。
+`readInviteQr({width,height,data})` 解码 RGBA 像素，Node 也可使用；
+`readInviteQrFile(Blob)` 在浏览器本地识别图片。摄像头优先使用支持 QR 的
+原生 `BarcodeDetector`，不可用时使用动态加载的解码器。仅在调用扫描函数时
+申请摄像头；成功、取消、超时、异常都停止自有视频轨道，默认 60 秒超时，
+优先后置摄像头。摄像头需要 HTTPS／安全上下文；无权限或无设备时可选图片
+或手动输入。解析只返回 `{origin,code}`，不跳转二维码里的地址，非房间邀请
+会被拒绝；加入前须检查中继。仅本地测试可显式设置 `allowLoopbackHttp:true`，
+不代表公网 HTTP 可访问摄像头。
+
+唯一浏览器演示 `website/play.html` 建房后显示二维码，支持扫码／图片加入、
+复制邀请和退出后再加入。图片不会上传；浏览器验收使用真实二维码像素与
+受控视频帧，不等同于实体手机摄像头扫码验收。
+
+## 可选自动 P2P mesh
+
+`MeshSession` 从 `romzo` 或 `romzo/mesh` 导出，在 `RelaySession` 上叠加
+WebRTC，不改变中继协议。房间须声明 `{name: "signal", maxFrameBytes: 16384}`，
+加上业务频道合计不超过 8 个：
+
+```ts
+import { MeshSession, attachMesh } from "romzo/mesh";
+const session = await MeshSession.connect(url, admission, identity,
+  { autoReconnect: { signedDescriptor } },
+  { signedDescriptor, rtcConfig: { iceServers: [{ urls: "stun:your-stun.example" }] },
+    onPath: (peer, path) => console.log(peer, path) });
+await session.subscribe("chat");
+await session.send("chat", { seq: 1, text: "你好" });
+// 已有中继会话：await attachMesh(relay, identity, {signedDescriptor})。
+```
+
+附加时校验描述符签名、配置哈希、冻结的 `relay.roomBinding`
+（`origin/code/instance/digest`）与签名身份。signal 订阅成功即可返回，不等待 RTC。
+一个 relay 只能附加一个 mesh；成功后 mesh 管理其生命周期。附加失败只清理
+本次监听和订阅，不关闭调用方的 relay；`connect` 失败会关闭自己新建的 relay。
+
+完整代理 `id/key/joinSeq/roomBinding`、`on/off`、订阅／取消订阅、发送、名册、
+keepalive、`currentRecovery` 和关闭。`path(peer)` 返回 `relay/connecting/rtc`，
+未知成员返回 null，`onPath` 通知变化。RTC 可以经过 TURN，不能把角标解释为网络直连。
+signal 对包装层的事件和名册隐藏，不能经包装层发送、订阅或取消订阅；
+`relay` 是显式逃生舱。Node 没有 WebRTC 时仍能加载和附加，使用中继。
+
+**投递契约：**每条消息只选一条路径，不自动重试或重放。存续的单一路径有序、
+至多一次；跨路径允许乱序和丢失。中继 `send()` 成功表示服务端 ack，RTC 成功
+表示本地入队，都不表示接收方处理完成。应用须实现序号、ack、重排、去重、
+缺口检测和历史同步。广播可能部分成功后 reject，已发送副本不撤销、不自动补发。
+
+使用可靠、有序单 DC，封套 `{v:1,channel,value}`。身份元数据绑定 relay 名册，
+双方必须订阅业务频道；value 按 UTF-8 JSON 字节数校验频道上限。
+完整封套超过协商的 SCTP 上限时走中继。全中继广播只用一个原生广播帧，
+混合广播按成员分别投递；排队期间原生广播的接收名册变化则拒绝，避免发给新成员。
+
+**发送预算：**默认最多 128 个排队／在途投递项、合计 1 MiB，等待期限 15 秒。
+中继发送与信令共享 32 帧/秒（突发 8 帧）、256 KiB/秒（突发 512 KiB）预算；
+控制消息优先但同样有界。队列满则拒绝，不擅自合并或丢弃业务消息；混合广播
+先预留全部副本容量。DC 高／低水位为 256／64 KiB；大于高水位的消息等缓冲为空。
+可配置 `maxQueuedItems/maxQueuedBytes/queueTimeoutMs`、
+`relayFramesPerSecond/relayFrameBurst/relayBytesPerSecond/relayByteBurst`、
+`bufferedAmountHighWaterMark/bufferedAmountLowWaterMark`。
+单帧超过配置的字节突发容量则拒绝。自定义服务端限额需要对应调低预算；
+预算不包含底层自动 keepalive、订阅和逃生舱发送，不能保证免疫全部服务端限流。
+
+**信令与信任：**版本化 hello 请求每个 peer 只回应一次，回应不再次回应。
+较小的 `(key,peerId)` 唯一发 offer 并分配 generation。offer／answer 使用
+`romzo/mesh-sdp/v1` 签名，覆盖房间、双方 peer/key、generation、帧类型与 SDP。
+信任 roster key；签名不抵御恶意 relay 替换名册、不隐藏 SDP，也不加密中继业务载荷。
+candidate 绑定 generation 和 ICE ufrag，每代最多 64 条／64 KiB。
+默认协商超时 10 秒，失败经 1–2 秒退避重试一次；连接成功后重置重试预算，仍未恢复的 peer 对维持中继，直到成员连接变化。
+中继掉线立即关闭 PC、拒绝旧目标队列；重连后恢复名册并重新发现。bye 仅尽力发送。
+
+官网 `play.html` 是唯一浏览器演示入口，包含路径角标。新房间声明 signal 并使用
+mesh，并要求新版中继启用持久成员编号（`MEMBER_STATE_FILE`）。缺少 signal 的房间或
+未提供成员编号的节点会明确拒绝，不再兼容旧版。运行 `npm run build:website` 和
+`npm run dev --prefix website` 可本地预览；正式页面连接 romzo.net，集成测试
+仅替换本地中继地址并模拟验证。`npm run test:mesh` 覆盖本机真实 RTC、回退、relay 重启
+和 SDK 包消费；公网 NAT、UDP 受限网络与 TURN 候选路径须另行实网验收。
 ESM，TypeScript 严格模式。
 行为与 Go 参考服务端逐字节兼容（canonical JSON、域分隔哈希/HMAC、Ed25519 签名域），并以 `protocol/relay-v1-vectors.json` 共享测试向量做契约校验。
 
@@ -72,13 +167,15 @@ await session.subscribe("table");
 ```ts
 import { buildInviteLink, parseInviteHash } from "romzo";
 const link = buildInviteLink("https://romzo.net", "ABCD123XYZ", "https://game.example.com/");
-// https://game.example.com/#ABCD123XYZ@romzo.net
+// https://game.example.com/#ABCD123XYZ/romzo.net
 const address = parseInviteHash(new URL(link).hash);
 // { origin: "https://romzo.net", code: "ABCD123XYZ" }
 ```
 
+新邀请使用 `/` 分隔房间号与中继域名；旧的 `@` 邀请仍可解析。
+
 邀请中省略端口 = 服务默认端口 **443**（`DEFAULT_RELAY_PORT`），即由反向代理终结的 HTTPS。
-其他端口的中继必须显式写出——`buildInviteLink("https://romzo.net:9224", ...)` 会产出 `#ABCD123XYZ@romzo.net:9224`——否则会被解析回 443。
+其他端口的中继必须显式写出——`buildInviteLink("https://romzo.net:9224", ...)` 会产出 `#ABCD123XYZ/romzo.net:9224`——否则会被解析回 443。
 本地回环开发应始终显式写出端口。
 
 函数不读写 DOM 或历史。
@@ -86,6 +183,14 @@ const address = parseInviteHash(new URL(link).hash);
 生产邀请隐含 HTTPS。
 邀请函数处理本地回环地址时，须显式传入 `{ allowLoopbackHttp: true }` 才允许 http。
 口令和恢复票据不得加入邀请。
+
+局域网邀请在不变更房号的前提下扩展 host 位置；`parseInviteHash` 自动识别私网字面量，以 `lan` 候选替代 `origin` 返回：
+
+- `#ABCD123XYZ/lan` —— 发现形态：`{ code, lan: [] }`；房号即局域网内的会合密钥。
+- `#ABCD123XYZ/192.168.1.50,10.0.0.7:7777` —— 直连形态：至多八个私网候选共享一个端口，`{ code, lan: [...] }`。
+- `#ABCD123XYZ/192.168.1.50:7777` —— 单个私网字面量自动识别为单候选直连。
+
+候选仅限私网字面量（`10/8`、`172.16/12`、`192.168/16`、`169.254/16`、`100.64/10`、`fc00::/7`、`fe80::/10`、`*.local`）；公网 IP 字面量保持中继语义，回环保持中继 origin。 `buildLanInvite(code, hosts, client)` 构建两种形态（`hosts` 为空 = 发现形态），并经解析器往返校验。 `parseInviteText` 可解析完整链接、裸 fragment 和裸 `CODE/host` 文本；带凭据或 query 的链接一律不解析。
 
 ## 崩溃恢复
 
@@ -177,3 +282,7 @@ SDK 默认每 10 秒保活，应用应及时订阅频道；未订阅即 keepaliv
 断线后的缺口检测、操作去重及历史同步由应用层负责，投递契约见 FRAMES_zh.md。
 
 频道名称由应用定义；未声明时房间没有频道。
+
+### 稳定成员顺序
+
+Discovery 声明 `stableMemberOrder` 时，`session.joinSeq` 是该身份在当前房间实例中的首次入房编号。`session.members(channel)` 返回不可修改、按编号排序的在线连接列表（`Member`：peer、key、可选 joinSeq）；同公钥多个连接共用编号，在线人数按公钥去重。`session.on("members", (members, {channel}) => ...)` 通知快照和增量变化，包括断线清空、订阅及自动重连后重建。`await session.subscribe(channel)` 返回后可读取完整列表。join/leave/receive 的事件元数据也包含可选 joinSeq。未启用持久编号时显示普通参与者标签，不自行伪造统一顺序。成员编号不等于游戏座位，也不意味着消息可靠送达。

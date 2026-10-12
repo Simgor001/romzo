@@ -75,7 +75,7 @@ test(`real local HTTP/WS (${publicMode ? 'public origins' : 'private origins'}):
     }
     const options = {app: 'generic-example', channels: [{name: 'table', maxFrameBytes: 262144}], players: 2, rules: ['draft', {dice: 6}], expansion: null};
     const room = await createRoom(origin, options, {...httpOptions, password});
-    assert.equal(room.discovery.version, '1.3.1');
+    assert.equal(room.discovery.version, '1.4.0');
     const invite = buildInviteLink(origin, room.descriptor.code, 'http://localhost:5190/', {allowLoopbackHttp: true});
     assert.equal(parseInviteHash(new URL(invite).hash, {allowLoopbackHttp: true}).origin, origin);
     const guest = await joinRoom(origin, room.descriptor.code, {...httpOptions, validateOptions: value => assert.deepEqual(value, options)});

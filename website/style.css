@@ -215,6 +215,9 @@ nav {
 
 /* Playground composes the shared page head, node and code panels. */
 .play-layout { display: grid; grid-template-columns: minmax(340px, .85fr) minmax(0, 1.35fr); gap: 24px; align-items: start; padding-top: 40px; padding-bottom: 56px; }
+.play-page .page-head .wrap { padding-top: 36px; padding-bottom: 32px; gap: 24px; }
+.play-page .page-head h1 { font-size: clamp(30px, 4vw, 44px); }
+.play-invite-details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .play-node { width: 360px; max-width: 100%; }
 .play-page .page-head .wrap > * { min-width: 0; }
 .play-doc-link { display: inline-block; margin-top: 8px; font-size: 14px; }
@@ -229,6 +232,12 @@ nav {
 .play-room-modes button:disabled { cursor: default; }
 .play-label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 #join-code { background: var(--bg1); font-family: var(--mono); }
+.play-join-input { position: relative; }
+.play-join-input #join-code { padding-right: 52px; }
+.play-scan-trigger { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.play-scan-trigger:hover { background: var(--bg2); color: var(--accent); }
+.play-scan-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.play-scan-trigger:disabled { opacity: .45; cursor: default; }
 #join-hint { margin-top: 12px; }
 .play-form-error { color: var(--bad); font-size: 14px; margin-bottom: 0; }
 #copy-code { margin-bottom: 8px; }
@@ -238,8 +247,36 @@ nav {
 #create-result { margin: 0; }
 .play-room-code { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 12px; font-size: 14px; color: var(--muted); }
 .play-room-code strong { font: 600 16px var(--mono); color: var(--ink); }
+.play-page .play-room-code { display: block; text-align: center; margin-bottom: 16px; }
+.play-page .play-room-code strong { display: block; font-size: 23px; letter-spacing: .055em; margin-top: 4px; }
+.play-qr { margin: 0 0 20px; text-align: center; }
+.play-qr img { display: block; margin: 0 auto; width: 184px; height: 184px; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.play-qr figcaption { margin-top: 10px; color: var(--muted); font-size: 13px; }
+.play-invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.play-invite-actions .btn { font-size: 14px; padding: 11px 10px; }
+.play-invite-actions #copy-code { margin: 0; }
+.play-feedback { min-height: 20px; margin: 8px 0; text-align: center; font-size: 12px; color: var(--ok); }
+.play-feedback[data-state="error"] { color: var(--bad); }
+.play-invite-details .invite-box { margin-top: 10px; margin-bottom: 0; }
+.play-leave { display: block; margin: 20px auto 0; background: transparent; border: 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
+.play-file-button { cursor: pointer; }
+.play-file-button:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play-empty small { display: block; font-size: 12px; margin-top: 8px; color: var(--faint); }
+.play-empty-mark { display: block; width: 56px; height: 48px; margin: 0 auto 16px; border: 1px solid var(--line); border-radius: 16px 16px 16px 4px; font: 30px/40px var(--mono); color: var(--muted); }
+.play-scan-dialog { width: min(440px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; border: 1px solid var(--line); border-radius: 14px; padding: 20px; background: var(--bg1); color: var(--ink); }
+.play-scan-dialog::backdrop { background: rgba(20, 25, 20, .6); }
+.play-scan-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.play-scan-head h2 { font-size: 18px; margin: 0; }
+.play-scan-close { border: 0; padding: 4px 10px; background: transparent; color: var(--muted); cursor: pointer; font-size: 24px; }
+#scan-video { width: 100%; min-height: 180px; aspect-ratio: 4/3; object-fit: cover; background: var(--bg2); border-radius: 8px; margin-bottom: 12px; }
 .invite-box { overflow-wrap: anywhere; font: 13px/1.7 var(--mono); color: var(--ink); background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin: 0 0 16px; }
-.play-log { height: 320px; overflow: auto; padding: 20px; font: 15px/1.7 var(--sans); scrollbar-width: thin; }
+.play-log { height: 380px; overflow: auto; padding: 20px; font: 15px/1.7 var(--sans); scrollbar-width: thin; }
+.play-paths { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+.play-paths[hidden] { display: none; }
+.play-paths li { display: inline-flex; align-items: center; gap: 10px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; }
+.play-path { font-weight: 600; }
+.play-path[data-path="rtc"] { color: var(--ok); }
+.play-path[data-path="connecting"] { color: var(--muted); }
 .play-log p { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .play-system { text-align: center; color: var(--faint); font-size: 12px; margin: 8px 0 16px; overflow-wrap: anywhere; }
 .play-message { max-width: 85%; width: fit-content; margin: 0 0 16px; }
@@ -257,6 +294,8 @@ nav {
 .play-input { flex: 1; min-width: 0; width: 100%; background: var(--bg1); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 16px var(--sans); }
 .play-input:focus-visible { outline: 2px solid var(--faint); outline-offset: 2px; }
 .play-input:disabled { opacity: .5; }
+.play-compose textarea { resize: vertical; max-height: 120px; min-height: 44px; line-height: 1.5; }
+.play-page summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .play-compose .btn { flex: none; }
 .play-status { padding: 0 20px 16px; color: var(--faint); font-size: 13px; }
 .play-status p { margin: 0; }
@@ -270,6 +309,7 @@ nav {
 @media (max-width: 640px) {
   .play-body { padding: 16px; }
   .play-log { height: 240px; padding: 16px; }
+  .play-paths { padding: 12px 16px; }
   .play-compose { padding: 16px; }
   .play-compose .btn { padding-left: 14px; padding-right: 14px; }
   .play-status { padding-left: 16px; padding-right: 16px; }

@@ -2,6 +2,8 @@ export * from "./canonical.js";
 export * from "./crypto.js";
 export * from "./types.js";
 export * from "./http.js";
+export * from "./attest.js";
 export * from "./session.js";
+export * from "./mesh.js";
 export * from "./facade.js";
 export * from "./invite.js";

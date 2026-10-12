@@ -1,14 +1,30 @@
 # romzo/v1 WebSocket 帧协议
 
+可选客户端 mesh 约定详见 [SDK mesh 契约](../packages/romzo-client/README_zh.md#可选自动-p2p-mesh)。
+mesh 在已声明的 signal 应用频道交换 hello、签名 SDP、generation candidate、
+restart 和尽力发送的 bye；业务消息可走可靠有序 DC。此约定不改变 romzo/v1。
+跨中继／RTC 切换允许乱序和丢失，应用负责序号、ack 和历史恢复；SDP 签名信任
+relay 名册中的公钥，不提供独立于 relay 的身份认证。
+
 English: [FRAMES.md](FRAMES.md)
 
 本文档是 `relay` WebSocket 面的规范，与 HTTP 面的 OpenAPI 文档（`openapi.yaml`）互补。第三方客户端实现应以本文档 + 共享测试向量（`protocol/relay-v1-vectors.json`）为准，不需要阅读服务端源码。
 
-服务端发行版本为 **1.3.1**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。频道由应用通过 `options.channels` 显式声明；中继没有预置的频道名称。
+服务端发行版本为 **1.4.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。频道由应用通过 `options.channels` 显式声明；中继没有预置的频道名称。
 
 ## 邀请链接与房间配置
 
 标准邀请为 `https://<client-origin>/#<10位Crockford房号>@<relay-host[:port]>`，例如 `https://game.example.com/#ABCD123XYZ@romzo.net`。房号大写、不带分隔符；生产中继隐含 HTTPS。省略端口 = 服务默认端口 **443**（经反向代理的 HTTPS）；其他端口的中继必须显式写出（如直连监听的 `:9224`），本地回环开发应始终显式写出端口。
+
+### 局域网邀请
+
+三种形态扩展了 host 位置；房号不变，且全部仍是纯 fragment 数据：
+
+- `#<房号>/lan` —— 发现形态：无 host。房号即局域网内的会合密钥；应用自行定位宿主（例如 Node 宿主通过组播宣告）。
+- `#<房号>/<host1,host2:port>` —— 直连形态：一至八个私网候选共享一个显式端口，按序尝试。
+- `#<房号>/<私网字面量:port>` —— 单个私网字面量自动识别为单候选直连形态。
+
+候选必须是私网字面量（`10/8`、`172.16/12`、`192.168/16`、`169.254/16`、`100.64/10`、`fc00::/7`、`fe80::/10` 或 `*.local` 名称）。私网字面量绝不解释为中继 origin；公网 IP 字面量保持中继语义。回环仍是中继 origin（仅显式启用时允许 HTTP），绝不是 LAN host。裸关键字 `lan` 是发现形态；带显式端口的 `lan:port` 按主机名解析。
 
 fragment 不进入 HTTP 请求，客户端解析后通过 `history.replaceState` 清除，并自行保存刷新和历史导航所需的状态。口令、私钥、恢复票据不进入邀请。SDK 的 `buildInviteLink` / `parseInviteHash` 是纯函数，不操作浏览器历史。
 
@@ -98,3 +114,15 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 每连接：64 帧/秒、1 MiB/秒（令牌桶，突发 2 秒）；写队列 128 帧 / 1 MiB，满则断开该连接；全局队列 64 MiB。
 
 每 IP：认证后的入站 WS 原始 JSON 字节默认 1 MiB/秒，突发 2 秒；`IP_BYTES_PER_SECOND` 可调整。多个房间和频道共用该源 IP 的预算，JSON 空白也计入。每连接限制同时生效。IP 识别只信任 `TRUSTED_PROXIES` 明确列出的代理；出站扇出带宽不受此限。令牌补充使用 Go time 的单调时间分量。
+
+## 稳定成员顺序（可选 v1 扩展）
+
+配置 `MEMBER_STATE_FILE` 后，Discovery 声明 `stableMemberOrder: true`。身份由已验证的传输公钥识别，在房间实例中首次成功认证连接时分配 `joinSeq`（1..4096）。申请入房不占号，房主不预留 1 号；离开不回收编号，同一公钥的多个连接共用编号。这个顺序不是游戏座位。
+
+`authenticated` 增加自身 `key` 和可选 `joinSeq`；`join`、`leave`、`receive` 增加对应公钥和可选编号。`peer` 仍是用于定向发送的临时连接 ID。保留 `romzo/v1`、现有帧种类及签名格式，
+
+每次成功订阅的 ack 增加 `channel` 和 `value: {members: [{peer, key, joinSeq?}, ...]}`，返回该频道完整在线连接列表，包括自己；按编号及连接 ID 排序。同一公钥的连接分别列出。已有成员 join 通知在快照前发送，后续增量在快照后发送；客户端必须在处理 ack 时同步应用快照，不能放到 Promise 回调里覆盖后续加入事件。重复订阅同样返回快照，不泄露其他频道的成员。服务器快照可以超过客户端控制帧的 16 KiB 上限，但仍受 288 KiB 服务器帧上限约束。
+
+恢复同一签名房间实例时沿用原编号；新实例独立编号。必须保留成员状态文件和原票据密钥。缺失记录时恢复返回 `member_state_unavailable`（409）；落盘失败返回 `member_state_write_failed`（HTTP 503 或 WS 请求/终止错误）。每房间最多登记 4096 个身份，超过后新身份认证返回 `member_capacity`，已有身份可重连。未配置持久编号时，客户端不生成声称全局一致的本地编号。
+
+公开确定性帧示例见 [member-order-v1-vectors.json](member-order-v1-vectors.json)。

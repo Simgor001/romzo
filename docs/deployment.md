@@ -25,7 +25,7 @@ them empty does not generate keys at startup.
 
 The server serves HTTP/WS behind a TLS reverse proxy; PUBLIC_ORIGIN must be a canonical HTTPS origin, except for explicit loopback development.
 Do not expose the unencrypted listener publicly.
-`relay -version` reports 1.3.1.
+`relay -version` reports 1.4.0.
 
 ## Configuration
 
@@ -33,11 +33,14 @@ Do not expose the unencrypted listener publicly.
 | --- | --- | --- |
 | `CLIENT_ORIGINS` | `PUBLIC_ORIGIN` | `*` allows arbitrary HTTP(S) web origins; private deployments use comma-separated exact origins (scheme, host, port; no path). Authentication and limits still apply. |
 | `ADMIN_ORIGINS` | `PUBLIC_ORIGIN` | Separate exact origin allowlist for metrics/admin; no wildcard. Management Bearer authentication still applies. |
-| `CREATE_AUTH` | — | `password` verifies a PBKDF2 challenge proof; `anonymous`/`off` skip that proof. |
-| `TURNSTILE_SECRET` | — (optional) | Independently enforces Turnstile on room creation only; enable it for a public anonymous demo. Idempotent allocation replays do not revalidate a spent Turnstile token. |
+| `CREATE_AUTH` | — | Attestation mode for room creation: `password` (PBKDF2 proof), `anonymous`/`off` (no proof), `turnstile`, `oauth`, or the combination `turnstile+oauth`. Requires `GRANT_KEY` for the latter three. |
+| `TURNSTILE_SECRET` | — (optional) | Enables Cloudflare Turnstile attestation; requires `turnstile` in `CREATE_AUTH`. Siteverify responses are pinned to the `PUBLIC_ORIGIN` hostname unless `TURNSTILE_HOSTNAMES` (comma-separated) overrides it; `TURNSTILE_ACTION` optionally enforces the widget action. Clients exchange tokens for grants via `/api/v1/verify`. |
 | `*_FILE` variants | — | Private secret values may instead be supplied through the corresponding `*_FILE` variables. |
 | `AUTH_SALT` | — | Keep stable across normal restarts. Password rotation requires a fresh salt. |
 | `TICKET_KEY` | — | Keep stable across normal restarts. Losing or rotating the ticket key invalidates recovery. |
+| `GRANT_KEY` | — | Signs creation grants (turnstile/oauth attestation). Keep stable; rotating it invalidates outstanding grants only. |
+| `TURNSTILE_SITEKEY` | — | Public Turnstile site key, announced in discovery for SDK-rendered widgets; required for the combined `turnstile+oauth` gate. |
+| `OAUTH_*` | — | Generic OAuth2/OIDC client (`OAUTH_PROVIDER`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_AUTHORIZE_URL`, `OAUTH_TOKEN_URL`, `OAUTH_USERINFO_URL`, optional `OAUTH_SCOPES`, `OAUTH_NAME_FIELD` dot path). Requires `oauth` in `CREATE_AUTH`; register the callback `PUBLIC_ORIGIN + /api/v1/auth/oauth/callback` with the provider. Grants carry the provider login as their subject, so OAuth relays double as private servers. |
 
 Rooms are memory-only: clients with unexpired recovery tickets restore the room and perform application-layer resynchronization after a restart.
 
@@ -57,7 +60,7 @@ docker compose -f deploy/compose.yaml up -d
 The compose file pulls the versioned GHCR image, with Linux amd64 and arm64 support.
 Set `ROMZO_VERSION=v1.3.0` (or another published tag) to choose a release.
 The first publication must complete and the package must be public before anonymous pulls work.
-Generate secrets using `docker run --rm ghcr.io/simgor001/romzo:v1.3.0 init > deploy/.env.secrets`, then fill `deploy/.env` as described above.
+Generate secrets using `docker run --rm ghcr.io/simgor001/romzo:v1.4.0 init > deploy/.env.secrets`, then fill `deploy/.env` as described above.
 
 To build locally instead of pulling a release:
 
@@ -229,3 +232,16 @@ Other history updates checkpoint approximately every 10 seconds.
 Do not commit records or keys, include them in images, or publish them.
 Enabling IP history requires a user-facing notice of purpose, access and retention.
 No monitoring data is sent back to the project; creator IP is not proof of identity.
+
+## Durable member numbering
+
+The current playground requires this feature. Nodes that omit member numbers are
+rejected explicitly; the playground no longer supports older relays.
+
+Set `MEMBER_STATE_FILE=/var/lib/romzo/members.json` on a persistent private writable volume, owned by relay UID 65532 in Docker. Use a different path from `METRICS_HISTORY_FILE`. Leave it unset to disable stable numbering; the relay will not advertise `stableMemberOrder`. The state file stores public-key/order mappings, room instance/descriptor digest and retention expiry, not chat history, private keys or tickets. Treat identity metadata as private operational data.
+
+The relay synchronously saves new identities and recovery-expiry extensions before acknowledging them, using a private temporary file, file fsync and atomic replacement (also directory fsync on Unix). Windows verifies process-crash recovery; power-loss durability of directory replacement is not guaranteed by Go's portable Windows filesystem API. Only one relay process may use this file. Bounds: 4096 historical identities per room, 8192 retained room instances and 32 MiB serialized state; exhausted capacity rejects operations rather than forgetting order. This is a conservative single-node implementation: synchronous full snapshots trade throughput for durable acknowledgements.
+
+A missing file initializes empty state, so old recovery requests without matching records are rejected; an existing corrupt/unreadable file prevents startup. Keep `TICKET_KEY`, origin and the volume stable across restarts. Records are pruned only when the room is absent and issued recovery tickets have expired. Room descriptors and messages still require client-led restore/resynchronization. Backups of this file are not an online rollback mechanism: rolling back to older state can lose acknowledged order, so invalidate affected rooms/tickets before using an old backup.
+
+Rollout: upgrade relay, SDK and site together; drain existing rooms before enabling numbering; provision the volume and set MEMBER_STATE_FILE; deploy relay, then SDK/site. Do not hot-enable the feature for old rooms whose original order is unknowable. Monitor `member_capacity`, `member_state_write_failed`, `member_state_unavailable` errors and disk usage. No public-node deployment is implied by local tests.

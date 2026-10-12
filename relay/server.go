@@ -53,16 +53,21 @@ func (anonymousAuthorizer) Authorize(AllocationRequest, string) (string, error) 
 }
 
 type Server struct {
+	memberRecords                                                       map[string]*memberRecord
 	monitor                                                             roomMonitor
 	closeReasons                                                        map[string]int
 	cfg                                                                 Config
 	auth                                                                CreateAuthorizer
+	mode                                                                createMode
 	client                                                              *http.Client
 	now                                                                 func() time.Time
 	mu                                                                  sync.Mutex
 	rooms                                                               map[string]*Room
 	requests                                                            map[string]string
 	challenges                                                          map[string]Challenge
+	grants                                                              map[string]int64
+	oauthStates                                                         map[string]oauthPending
+	verifySessions                                                      map[string]verifySession
 	limits                                                              map[string]bucket
 	connections, unauthenticated, queued                                int
 	receivedFrames, receivedBytes, sentFrames, sentBytes, queueRejected int64
@@ -75,8 +80,12 @@ func newServer(c Config) *Server {
 	if c.OptionsBytes == 0 {
 		c.OptionsBytes = 4096
 	}
-	s := &Server{cfg: c, now: time.Now, client: &http.Client{Timeout: 10 * time.Second}, rooms: map[string]*Room{}, requests: map[string]string{}, challenges: map[string]Challenge{}, limits: map[string]bucket{}, closeReasons: map[string]int{}}
-	if c.Auth == "password" {
+	mode, e := parseCreateMode(c.Auth)
+	if e != nil {
+		mode = createMode{allowAll: true}
+	}
+	s := &Server{memberRecords: map[string]*memberRecord{}, cfg: c, mode: mode, now: time.Now, client: &http.Client{Timeout: 10 * time.Second}, rooms: map[string]*Room{}, requests: map[string]string{}, challenges: map[string]Challenge{}, grants: map[string]int64{}, oauthStates: map[string]oauthPending{}, verifySessions: map[string]verifySession{}, limits: map[string]bucket{}, closeReasons: map[string]int{}}
+	if mode.password {
 		s.auth = passwordAuthorizer{c.Verifier}
 	} else {
 		s.auth = anonymousAuthorizer{}
@@ -85,6 +94,8 @@ func newServer(c Config) *Server {
 }
 func (s *Server) sweepLocked() {
 	now := s.now()
+	s.sweepGrantsLocked()
+	s.pruneMembersLocked()
 	for k, c := range s.challenges {
 		if !c.Expires.After(now) {
 			delete(s.challenges, k)
@@ -198,7 +209,7 @@ func readBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.RawQuery != "" {
+	if r.URL.RawQuery != "" && !strings.HasPrefix(r.URL.Path, api+"auth/") {
 		failure(w, 400, "query_not_allowed")
 		return
 	}
@@ -231,7 +242,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" && r.URL.Path == "/.well-known/romzo" {
-		result(w, 200, map[string]any{"protocol": protocol, "version": version, "origin": s.cfg.Origin, "auth": s.cfg.Auth, "salt": hex.EncodeToString(s.cfg.Salt), "iterations": 600000, "algorithm": "PBKDF2-HMAC-SHA256", "turnstile": s.cfg.TurnstileSecret != "", "limits": map[string]int{"framesPerSecond": s.cfg.FramesPerSecond, "bytesPerSecond": s.cfg.BytesPerSecond}})
+		doc := map[string]any{"protocol": protocol, "version": version, "origin": s.cfg.Origin, "auth": s.mode.String(), "salt": hex.EncodeToString(s.cfg.Salt), "iterations": 600000, "algorithm": "PBKDF2-HMAC-SHA256", "turnstile": s.cfg.TurnstileSecret != "", "limits": map[string]int{"framesPerSecond": s.cfg.FramesPerSecond, "bytesPerSecond": s.cfg.BytesPerSecond}}
+		if s.cfg.MemberStateFile != "" {
+			doc["stableMemberOrder"] = true
+		}
+		if s.cfg.TurnstileSiteKey != "" {
+			doc["turnstileSiteKey"] = s.cfg.TurnstileSiteKey
+		}
+		if s.cfg.TurnstileSecret != "" && s.cfg.GrantKey != nil {
+			doc["verify"] = api + "verify"
+		}
+		if s.cfg.OAuth.configured() {
+			doc["oauthLogin"] = api + "auth/oauth/login"
+		}
+		result(w, 200, doc)
 		return
 	}
 	if r.URL.Path == api+"metrics" || strings.HasPrefix(r.URL.Path, api+"admin/") {
@@ -254,6 +278,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	limitKey, rate, burst := r.URL.Path, float64(2), float64(10)
 	if r.URL.Path == wsPath {
 		rate, burst = 8, 32
+	}
+	if r.URL.Path == api+"verify" || strings.HasPrefix(r.URL.Path, api+"auth/") {
+		limitKey = "attest"
+		rate, burst = 4, 16
 	}
 	if strings.HasPrefix(r.URL.Path, api+"rooms/") {
 		switch {
@@ -286,6 +314,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "GET" && r.URL.Path == wsPath {
 		s.websocket(w, r)
+		return
+	}
+	if r.Method == "POST" && r.URL.Path == api+"verify" {
+		s.serveVerify(w, r)
+		return
+	}
+	if r.Method == "GET" && (r.URL.Path == api+"auth/oauth/login" || r.URL.Path == api+"auth/oauth/callback") {
+		if r.URL.Path == api+"auth/oauth/login" {
+			s.serveOAuthLogin(w, r)
+		} else {
+			s.serveOAuthCallback(w, r)
+		}
 		return
 	}
 	if r.Method == "POST" && r.URL.Path == api+"room-challenges" {
@@ -429,6 +469,7 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 		Request   AllocationRequest `json:"request"`
 		Proof     string            `json:"proof"`
 		Turnstile string            `json:"turnstile"`
+		Grant     *SignedGrant      `json:"grant"`
 	}
 	if !readBody(w, r, &body) {
 		return
@@ -456,10 +497,16 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Unlock()
-	// Turnstile verification is a blocking network call. It runs before the
-	// single-use challenge is consumed and must stay outside the server lock;
-	// idempotent replays above never re-verify an already spent token.
-	if s.cfg.TurnstileSecret != "" {
+	// A legacy direct Turnstile token is still accepted in turnstile modes, but
+	// only when no grant is presented; grants are the preferred credential. The
+	// verification is a blocking network call — it runs before the single-use
+	// challenge is consumed and stays outside the server lock, and idempotent
+	// replays above never re-verify an already spent token.
+	if s.mode.turnstile && body.Grant == nil {
+		if s.cfg.TurnstileSecret == "" {
+			failure(w, 503, "attestation_unavailable")
+			return
+		}
 		if body.Turnstile == "" {
 			failure(w, 403, "turnstile_required")
 			return
@@ -477,8 +524,31 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.challenges, q.Challenge) // Failed proofs also consume the single-use challenge.
-	subject, authError := s.auth.Authorize(q, body.Proof)
-	if authError != nil || subject == "" || len(subject) > 200 {
+	// Authorization resolves the creator subject from the configured
+	// attestation mode: grant first, then the legacy password and direct
+	// Turnstile fallbacks.
+	subject := ""
+	if s.mode.allowAll {
+		subject = "anonymous"
+	}
+	if subject == "" && body.Grant != nil {
+		granted, err := s.consumeGrantLocked(*body.Grant, q.Host, s.mode)
+		if err != nil {
+			failure(w, 401, "invalid_grant")
+			return
+		}
+		subject = granted
+	}
+	if subject == "" && s.mode.password {
+		authorized, authError := s.auth.Authorize(q, body.Proof)
+		if authError == nil {
+			subject = authorized
+		}
+	}
+	if subject == "" && s.mode.turnstile && body.Grant == nil && body.Turnstile != "" {
+		subject = "turnstile" // Token verified above, outside the lock.
+	}
+	if subject == "" || len(subject) > 200 {
 		failure(w, 401, "authorization_failed")
 		return
 	}
@@ -505,8 +575,12 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 }
 
 // verifyTurnstile checks a Cloudflare Turnstile token against the configured
-// siteverify endpoint. A non-OK or undecodable response is unavailable, not a
-// failed token; the feature fails closed either way while it is enabled.
+// siteverify endpoint, then pins the response hostname to the configured
+// whitelist (default: PUBLIC_ORIGIN hostname) so tokens minted for widgets
+// embedded on other sites cannot be replayed here. TURNSTILE_ACTION, when
+// set, must match the widget action. A non-OK or undecodable response is
+// unavailable, not a failed token; the feature fails closed either way while
+// it is enabled.
 func (s *Server) verifyTurnstile(r *http.Request, token string) (int, string) {
 	form := url.Values{"secret": {s.cfg.TurnstileSecret}, "response": {token}, "remoteip": {s.clientIP(r)}}
 	req, e := http.NewRequestWithContext(r.Context(), http.MethodPost, s.cfg.TurnstileURL, strings.NewReader(form.Encode()))
@@ -520,12 +594,28 @@ func (s *Server) verifyTurnstile(r *http.Request, token string) (int, string) {
 	}
 	defer resp.Body.Close()
 	var v struct {
-		Success bool `json:"success"`
+		Success  bool   `json:"success"`
+		Hostname string `json:"hostname"`
+		Action   string `json:"action"`
 	}
 	if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&v) != nil {
 		return 503, "turnstile_unavailable"
 	}
 	if !v.Success {
+		return 403, "turnstile_failed"
+	}
+	host := strings.ToLower(v.Hostname)
+	hostnameOK := false
+	for _, allowed := range s.cfg.TurnstileHostnames {
+		if host == allowed {
+			hostnameOK = true
+			break
+		}
+	}
+	if !hostnameOK {
+		return 403, "turnstile_failed"
+	}
+	if s.cfg.TurnstileAction != "" && v.Action != s.cfg.TurnstileAction {
 		return 403, "turnstile_failed"
 	}
 	return 0, ""
@@ -546,6 +636,7 @@ func (s *Server) confirm(w http.ResponseWriter, r *http.Request, code string) {
 		failure(w, 410, "reservation_expired")
 		return
 	}
+	oldSigned, oldConfirmed, oldActive := room.Signed, room.Confirmed, room.Active
 	if !room.Confirmed {
 		room.Active = s.now()
 	}
@@ -558,6 +649,11 @@ func (s *Server) confirm(w http.ResponseWriter, r *http.Request, code string) {
 	remaining := room.Active.Add(lease).Sub(s.now())
 	if remaining <= 0 {
 		failure(w, 410, "room_expired")
+		return
+	}
+	if err := s.prepareMembersLocked(room, s.now().Add(remaining).UnixMilli()); err != nil {
+		room.Signed, room.Confirmed, room.Active = oldSigned, oldConfirmed, oldActive
+		failure(w, 503, "member_state_write_failed")
 		return
 	}
 	result(w, 200, map[string]any{"admission": s.ticket(room, d.Descriptor.Transport, "creator", 60*time.Second), "recovery": s.ticket(room, d.Descriptor.Transport, "recovery", remaining)})
@@ -603,6 +699,13 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
 	if err != nil {
 		failure(w, 403, "restore_failed")
 		return
+	}
+	if s.cfg.MemberStateFile != "" {
+		record := s.memberRecords[d.Instance]
+		if record == nil || record.Digest != t.Digest || record.Expires < s.now().UnixMilli() {
+			failure(w, 409, "member_state_unavailable")
+			return
+		}
 	}
 	room := s.rooms[code]
 	if room != nil && hash("romzo/relay-descriptor/v1", room.Signed) != t.Digest {

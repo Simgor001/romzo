@@ -8,7 +8,9 @@ import type {
   Discovery,
   RestoreResponse,
   SignedDescriptor,
+  SignedGrant,
   SignedTicket,
+  VerifyResponse,
 } from "./types.js";
 
 /** Minimal fetch surface so tests can inject a fake transport. */
@@ -179,21 +181,51 @@ export function createChallenge(
 /**
  * Allocate a room. The same request object replayed with the same requestId
  * is idempotent on the server; keep the challenge/proof pairing stable when
- * retrying. `turnstile` is the Cloudflare Turnstile token when the relay
- * requires it (see Discovery.turnstile). Omitted when absent for compatibility
- * with older relays that reject unknown request fields.
+ * retrying. Authorization follows the discovery attestation mode: password
+ * proof for password mode, a Cloudflare Turnstile token (legacy direct form)
+ * or grant for turnstile modes, grant only for oauth modes. Fields are omitted
+ * when absent for compatibility with older relays that reject unknown fields.
  */
+export interface AllocationAuth {
+  /** HMAC proof for password mode. */
+  proof?: string;
+  /** Cloudflare Turnstile token (legacy; a grant from verifyGrant is preferred). */
+  turnstile?: string;
+  /** Signed grant from verifyGrant or the OAuth login flow. */
+  grant?: SignedGrant;
+}
+
 export function allocate(
   origin: string,
   request: AllocationRequest,
-  proof: string,
-  turnstile?: string,
+  auth: AllocationAuth = {},
   options?: HttpOptions,
 ): Promise<Descriptor> {
   return relayRequest(
     origin,
     API + "rooms",
-    { request, proof, ...(turnstile ? { turnstile } : {}) },
+    {
+      request,
+      proof: auth.proof ?? "",
+      ...(auth.turnstile ? { turnstile: auth.turnstile } : {}),
+      ...(auth.grant ? { grant: auth.grant } : {}),
+    },
+    options,
+  );
+}
+
+/** Exchange a Cloudflare Turnstile token for a SignedGrant bound to host. */
+export function verifyGrant(
+  origin: string,
+  turnstile: string,
+  host: string,
+  session?: string,
+  options?: HttpOptions,
+): Promise<VerifyResponse> {
+  return relayRequest(
+    origin,
+    API + "verify",
+    session ? { turnstile, host, session } : { turnstile, host },
     options,
   );
 }

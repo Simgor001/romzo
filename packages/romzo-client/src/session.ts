@@ -1,5 +1,6 @@
+import type { Member } from "./types.js";
 import { hash } from "./canonical.js";
-import { sign } from "./crypto.js";
+import { sign, type Identity } from "./crypto.js";
 import { restoreSession } from "./facade.js";
 import { MAX_FRAME_BYTES, PROTOCOL } from "./types.js";
 import type {
@@ -57,6 +58,7 @@ export interface AutoReconnectOptions {
 }
 
 export type SessionEvent =
+  | "members"
   | "receive"
   | "join"
   | "leave"
@@ -67,9 +69,18 @@ export type SessionEvent =
 
 type Handler = (payload: unknown, meta: SessionMeta) => void;
 export interface SessionMeta {
+  joinSeq?: number;
   channel?: string;
   peer?: string;
   key?: string;
+}
+
+/** Immutable room identity from the authenticated session's admission. */
+export interface RoomBinding {
+  readonly origin: string;
+  readonly code: string;
+  readonly instance: string;
+  readonly digest: string;
 }
 
 /** Error emitted for application-level (non-terminal) failures, e.g. invalid_target. */
@@ -81,6 +92,8 @@ export class RelaySessionError extends Error {
 }
 
 interface Pending {
+  kind: string;
+  channel?: string;
   acknowledged?: boolean;
   resolve: (value?: unknown) => void;
   reject: (error: Error) => void;
@@ -89,7 +102,8 @@ interface Pending {
 
 const CONTROL_LIMIT = 16 * 1024;
 
-function encodeFrame(frame: Record<string, unknown>): string {
+/** Encode a client frame; exported so transport overlays budget against the exact wire bytes. */
+export function encodeFrame(frame: Record<string, unknown>): string {
   return JSON.stringify({ v: PROTOCOL, ...frame });
 }
 
@@ -104,6 +118,7 @@ function encodeFrame(frame: Record<string, unknown>): string {
  * re-subscribes the tracked channels instead of closing immediately.
  */
 export class RelaySession {
+  readonly roomBinding: RoomBinding;
   private socket: SocketLike | null = null;
   private handlers = new Map<SessionEvent, Set<Handler>>();
   private pending = new Map<string, Pending>();
@@ -123,15 +138,18 @@ export class RelaySession {
   } | null = null;
   private url = "";
   private subscriptions = new Set<Channel>();
+  private activeSubscriptions = new Set<Channel>();
   private reconnecting = false;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   private constructor(
     private readonly admission: SignedTicket,
-    private readonly identity: { publicKey: string; privateKey: CryptoKey },
+    private readonly identity: Identity,
     private readonly options: SessionOptions,
   ) {
+    const { origin, code, instance, digest } = admission.ticket;
+    this.roomBinding = Object.freeze({ origin, code, instance, digest });
     this.recovery = null;
     this.code = admission.ticket.code;
     this.instance = admission.ticket.instance;
@@ -160,6 +178,51 @@ export class RelaySession {
 
   /** Peer id assigned by the relay after the handshake. */
   id = "";
+  /** Authenticated transport identity, stable across reconnects. */
+  get key(): string { return this.identity.publicKey; }
+  /** Own stable member number, absent when durable numbering is disabled. */
+  joinSeq?: number;
+  private rosters = new Map<string, Map<string, Member>>();
+
+  /** Immutable online connection snapshot, ordered by member number. */
+  members(channel: Channel): readonly Member[] {
+    return Object.freeze([...(this.rosters.get(channel)?.values() ?? [])]
+      .sort((a,b) => (a.joinSeq ?? 0)-(b.joinSeq ?? 0) || a.peer.localeCompare(b.peer))
+      .map(member => Object.freeze({...member})));
+  }
+
+  private clearMembers(): void {
+    this.activeSubscriptions.clear();
+    const channels=[...this.rosters.keys()]; this.rosters.clear();
+    for (const channel of channels) this.emit("members",this.members(channel),{channel});
+  }
+
+  private readMember(value: unknown): Member {
+    const m=value as Member;
+    if (!m || typeof m.peer!=="string" || !m.peer || typeof m.key!=="string" || !m.key ||
+        (m.joinSeq!==undefined && (!Number.isSafeInteger(m.joinSeq) || m.joinSeq<1 || m.joinSeq>4096)))
+      throw new Error("invalid_member_metadata");
+    return {peer:m.peer,key:m.key,...(m.joinSeq===undefined?{}:{joinSeq:m.joinSeq})};
+  }
+
+  private acceptMembers(channel: string, value: unknown): void {
+    const list=(value as {members?:unknown})?.members;
+    if (!Array.isArray(list) || list.length>128) throw new Error("invalid_member_snapshot");
+    const roster=new Map<string,Member>();
+    const keys=new Map<string,number>(); const seqs=new Map<number,string>();
+    for (const item of list) {
+      const m=this.readMember(item);
+      if (roster.has(m.peer)) throw new Error("invalid_member_snapshot");
+      if (m.joinSeq!==undefined) {
+        if ((keys.has(m.key) && keys.get(m.key)!==m.joinSeq) ||
+            (seqs.has(m.joinSeq) && seqs.get(m.joinSeq)!==m.key)) throw new Error("invalid_member_snapshot");
+        keys.set(m.key,m.joinSeq);seqs.set(m.joinSeq,m.key);
+      }
+      roster.set(m.peer,m);
+    }
+    this.rosters.set(channel,roster);
+    this.emit("members",this.members(channel),{channel});
+  }
 
   /**
    * Connect and complete the four-frame handshake.
@@ -168,7 +231,7 @@ export class RelaySession {
   static async connect(
     url: string,
     admission: SignedTicket,
-    identity: { publicKey: string; privateKey: CryptoKey },
+    identity: Identity,
     options: SessionOptions = {},
   ): Promise<RelaySession> {
     const session = new RelaySession(admission, identity, options);
@@ -228,6 +291,11 @@ export class RelaySession {
             if (frame.kind === "authenticated" && state === "authenticated" && typeof frame.id === "string") {
               state = "done";
               clearTimeout(timer);
+              if (frame.joinSeq!==undefined) {
+                this.readMember({peer:frame.id,key:frame.key,joinSeq:frame.joinSeq});
+                if(frame.key!==this.identity.publicKey) throw new Error("member_identity_mismatch");
+              }
+              this.joinSeq=frame.joinSeq;
               this.id = frame.id;
               this.attach(socket);
               this.startKeepalive();
@@ -265,6 +333,7 @@ export class RelaySession {
    */
   private drop(error: Error): void {
     const socket = this.socket;
+    this.clearMembers();
     this.stopKeepalive();
     if (!this.reconnect) {
       this.closed = true;
@@ -350,6 +419,12 @@ export class RelaySession {
     if (frame.kind === "ack" || (frame.kind === "error" && frame.id)) {
       const p = this.pending.get(frame.id as string);
       if (!p || p.acknowledged) return;
+      if (frame.kind === "ack" && p.channel) {
+        if (p.kind === "subscribe") this.activeSubscriptions.add(p.channel);
+        if (p.kind === "unsubscribe") this.activeSubscriptions.delete(p.channel);
+      }
+      if (frame.kind==="ack" && p.kind==="subscribe" && p.channel && frame.value!==undefined)
+        this.acceptMembers(p.channel,frame.value);
       p.acknowledged = true;
       const settle = (error?: Error) => {
         if (this.pending.get(frame.id as string) !== p) return;
@@ -379,9 +454,18 @@ export class RelaySession {
       channel: frame.channel ?? "",
       peer: frame.peer,
       key: frame.key,
+      joinSeq: frame.joinSeq,
     };
     if (frame.kind === "join" || frame.kind === "leave") {
+      const channel=meta.channel!;
+      let roster=this.rosters.get(channel);
+      if(!roster) this.rosters.set(channel,roster=new Map());
+      if(frame.kind==="join" && frame.peer && frame.key) {
+        const member=this.readMember({peer:frame.peer,key:frame.key,joinSeq:frame.joinSeq});
+        roster.set(member.peer,member);
+      } else if(frame.kind==="leave" && frame.peer) roster.delete(frame.peer);
       this.emit(frame.kind, undefined, meta);
+      this.emit("members",this.members(channel),{channel});
     } else if (frame.kind === "receive") {
       this.emit("receive", frame.value, meta);
     } else {
@@ -433,7 +517,7 @@ export class RelaySession {
         this.pending.delete(id);
         reject(new Error("relay request timeout"));
       }, 15000);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { kind: String(frame.kind), channel: typeof frame.channel==="string" ? frame.channel : undefined, resolve, reject, timer });
       try {
         socket.send(packet);
       } catch (error) {
@@ -443,6 +527,9 @@ export class RelaySession {
       }
     });
   }
+
+  /** Whether the current connection has an acknowledged channel subscription. */
+  isSubscribed(channel: Channel): boolean { return !this.closed && this.activeSubscriptions.has(channel); }
 
   /** Subscribe to a channel; resolves when the server acks. Tracked and re-subscribed after an automatic reconnect. */
   subscribe(channel: Channel): Promise<void> {
@@ -455,6 +542,8 @@ export class RelaySession {
   unsubscribe(channel: Channel): Promise<void> {
     return this.request({ kind: "unsubscribe", channel }).then(() => {
       this.subscriptions.delete(channel);
+      this.rosters.delete(channel);
+      this.emit("members",this.members(channel),{channel});
     });
   }
 
@@ -517,6 +606,7 @@ export class RelaySession {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.clearMembers();
     this.stopKeepalive();
     try {
       this.socket?.close();

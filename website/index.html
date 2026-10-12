@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Romzo — a room-based WebSocket relay</title>
-<meta name="description" content="A room-based opaque WebSocket relay with a zero-runtime-dependency TypeScript SDK.">
+<meta name="description" content="Romzo is an open-source WebSocket relay framework that forwards messages within rooms.">
 <link rel="icon" type="image/svg+xml" href="romzo-icon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -39,8 +39,8 @@
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <h1>Romzo</h1>
-      <p class="sub l-en">A room-based opaque WebSocket relay with a zero-runtime-dependency TypeScript SDK.</p>
-      <p class="sub l-zh">基于房间的不透明 WebSocket 中继，附带零运行时依赖的 TypeScript SDK。</p>
+      <p class="sub l-en">Romzo is an open-source WebSocket relay framework that forwards messages within rooms.</p>
+      <p class="sub l-zh">Romzo 是一个按房间转发消息的开源 WebSocket 中继框架。</p>
       <div class="cta-row">
         <a class="btn primary l-en" href="sdk.html">Read the SDK docs</a>
         <a class="btn primary l-zh" href="sdk.html">查看 SDK 文档</a>
@@ -83,7 +83,7 @@ const room = await createRoom('romzo.net', {
 
 const invite = buildInviteLink(room.descriptor.origin,
   room.descriptor.code, 'https://client.example.com/');
-// -> https://client.example.com/#ABCD123XYZ@romzo.net
+// -> https://client.example.com/#ABCD123XYZ/romzo.net
 const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
 
 const session = await RelaySession.connect(

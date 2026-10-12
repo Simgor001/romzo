@@ -17,15 +17,18 @@ import {
   normalizeOrigin,
   requestAdmission,
   restoreRoom,
+  verifyGrant,
   RelayHttpError,
   type HttpOptions,
 } from "./http.js";
+import { attestationMode, requestGrant } from "./attest.js";
 import { PROTOCOL } from "./types.js";
 import type {
   AllocationRequest,
   Descriptor,
   Discovery,
   SignedDescriptor,
+  SignedGrant,
   SignedTicket,
 } from "./types.js";
 
@@ -61,8 +64,19 @@ export interface CreateRoomOptions extends HttpOptions {
   validateDiscovery?: (discovery: Discovery) => unknown | Promise<unknown>;
   /** Room creation password (required when the relay uses password auth). */
   password?: string;
-  /** Cloudflare Turnstile token, when Discovery.turnstile is true. */
+  /**
+   * Cloudflare Turnstile token, when the relay uses turnstile attestation.
+   * Preferred: leave this unset and let the SDK run the verification popup,
+   * or exchange the token for a grant via the verify endpoint (createRoom
+   * does this automatically when a token is supplied).
+   */
   turnstileToken?: string;
+  /**
+   * Pre-obtained creation grant (from verifyGrant or the OAuth login flow).
+   * Skips the automatic attestation popup; the only way to create rooms on
+   * oauth relays from non-browser environments.
+   */
+  grant?: SignedGrant;
   /** Application host key; generated when omitted. */
   host?: Identity;
   /** Transport key; generated when omitted. */
@@ -143,6 +157,22 @@ export async function createRoom(
     throw new Error("relay requires a creation password");
   const host = opts.host ?? (await generateKeyPair());
   const transport = opts.transport ?? (await generateKeyPair());
+  const mode = attestationMode(discovery.auth);
+  // Resolve the creation grant: caller-supplied wins; a raw Turnstile token is
+  // exchanged for a grant; otherwise the browser popup flow runs. Non-browser
+  // callers on attestation relays must pass { grant } explicitly.
+  let grant = opts.grant;
+  if ((mode.turnstile || mode.oauth) && !grant) {
+    if (mode.turnstile && !mode.oauth && opts.turnstileToken) {
+      grant = (await verifyGrant(origin, opts.turnstileToken, host.publicKey, undefined, opts)).grant;
+    } else if (typeof window !== "undefined" && typeof window.open === "function") {
+      grant = await requestGrant(origin, discovery, host.publicKey);
+    } else {
+      throw new Error(
+        "relay requires attestation; pass { grant } obtained from the verify endpoint or the OAuth login flow",
+      );
+    }
+  }
   const { challenge } = await createChallenge(origin, opts);
   const request: AllocationRequest = {
     protocol: PROTOCOL,
@@ -166,8 +196,7 @@ export async function createRoom(
   try { descriptor = await allocate(
     origin,
     request,
-    proof,
-    opts.turnstileToken,
+    { proof, turnstile: grant ? undefined : opts.turnstileToken, grant },
     opts,
   ); } catch (error) {
     if (error instanceof RelayHttpError && error.code === "authorization_failed") opts.passwordKeyProvider?.clear(origin);

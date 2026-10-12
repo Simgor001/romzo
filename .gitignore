@@ -1,4 +1,5 @@
 node_modules/
+website/sdk/
 **/dist/
 coverage/
 test-results/
@@ -20,3 +21,7 @@ test-results/
 
 # Local SSH credentials must never enter public commits.
 .ssh/
+
+# Private identity/order metadata and interrupted atomic writes.
+.romzo-members/
+.romzo-members-*

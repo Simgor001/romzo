@@ -105,7 +105,7 @@ describe("HTTP face (fake fetch)", () => {
           options: request.options,
         }),
     ]);
-    await allocate(ORIGIN, request, proof, "turnstile-token", { fetch });
+    await allocate(ORIGIN, request, { proof, turnstile: "turnstile-token" }, { fetch });
     const call = calls[0];
     expect(call.url).toBe(ORIGIN + "/api/v1/rooms");
     expect(call.init?.method).toBe("POST");
@@ -125,7 +125,7 @@ describe("HTTP face (fake fetch)", () => {
     const { fetch, calls } = fakeFetch([
       () => json({ code: "ABCD2345EF" }),
     ]);
-    await allocate(ORIGIN, request, "proof", undefined, { fetch });
+    await allocate(ORIGIN, request, { proof: "proof" }, { fetch });
     const body = JSON.parse(calls[0].init?.body as string);
     expect(body).not.toHaveProperty("turnstile");
     expect(body.proof).toBe("proof");
@@ -139,8 +139,8 @@ describe("HTTP face (fake fetch)", () => {
       () => json(descriptor),
     ]);
     const proof = "deadbeef".repeat(8);
-    await allocate(ORIGIN, request, proof, undefined, { fetch });
-    await allocate(ORIGIN, request, proof, undefined, { fetch });
+    await allocate(ORIGIN, request, { proof }, { fetch });
+    await allocate(ORIGIN, request, { proof }, { fetch });
     expect(calls[1].init?.body).toBe(calls[0].init?.body);
   });
 
@@ -149,7 +149,7 @@ describe("HTTP face (fake fetch)", () => {
       () => json({ error: "authorization_failed" }, 401),
     ]);
     try {
-      await allocate(ORIGIN, allocationRequest(), "bad", undefined, { fetch });
+      await allocate(ORIGIN, allocationRequest(), { proof: "bad" }, { fetch });
       expect.unreachable();
     } catch (e) {
       expect(e).toBeInstanceOf(RelayHttpError);

@@ -1,9 +1,17 @@
 {
   "name": "romzo",
-  "version": "0.3.0",
-  "description": "Romzo — client SDK for a room-based opaque WebSocket relay (romzo/v1). Zero runtime dependencies.",
+  "version": "0.4.0",
+  "description": "Romzo — client SDK for a room-based opaque WebSocket relay (romzo/v1). Web Crypto with an Ed25519 compatibility fallback.",
   "type": "module",
   "exports": {
+    "./qr": {
+      "types": "./dist/qr.d.ts",
+      "import": "./dist/qr.js"
+    },
+    "./mesh": {
+      "types": "./dist/mesh.d.ts",
+      "import": "./dist/mesh.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
@@ -41,14 +49,18 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/node": "24.10.1",
     "typescript": "5.9.3",
-    "vitest": "5.0.3",
-    "@types/node": "24.10.1"
+    "vitest": "5.0.3"
   },
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Simgor001/romzo.git",
     "directory": "packages/romzo-client"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "qr": "0.7.2"
   }
 }

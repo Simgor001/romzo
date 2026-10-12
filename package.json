@@ -19,10 +19,16 @@
     "test:relay": "node scripts/relay.mjs test",
     "test:relay:race": "node scripts/relay.mjs race",
     "test:integration": "npm run build && node --test tests/integration/relay.test.mjs",
-    "verify": "npm run check:public && npm run check -w romzo && npm test -w romzo && npm run test:relay && npm run test:relay:race && npm run test:integration && node scripts/generate-vectors.mjs --check && npm run build:relay && npm run check:artifacts",
-    "check:artifacts": "node scripts/check-public.mjs --artifacts"
+    "verify": "npm run check:public && npm run check -w romzo && npm test -w romzo && npm run test:relay && npm run test:relay:race && npm run test:integration && npm run test:mesh && node scripts/generate-vectors.mjs --check && npm run build:relay && npm run check:artifacts",
+    "check:artifacts": "node scripts/check-public.mjs --artifacts",
+    "build:website": "node scripts/build-website.mjs",
+    "test:mesh": "npm run build && npm run build:website && node --test tests/integration/mesh-consumer.test.mjs tests/integration/mesh.test.mjs",
+    "test:members": "npm run build:website && node --test tests/integration/members.test.mjs",
+    "test:mobile": "npm run build:website && node --test tests/integration/playground.test.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "esbuild": "0.28.2",
     "ws": "8.22.0"
   }
 }

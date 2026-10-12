@@ -15,7 +15,7 @@ import (
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "init" {
-		fmt.Printf("CREATE_AUTH=password\nCREATE_PASSWORD=%s\nAUTH_SALT=%s\nTICKET_KEY=%s\nMETRICS_KEY=%s\n", randomHex(24), randomHex(32), randomHex(32), randomHex(32))
+		fmt.Printf("CREATE_AUTH=password\nCREATE_PASSWORD=%s\nAUTH_SALT=%s\nTICKET_KEY=%s\nGRANT_KEY=%s\nMETRICS_KEY=%s\n", randomHex(24), randomHex(32), randomHex(32), randomHex(32), randomHex(32))
 		return
 	}
 	if len(os.Args) == 2 && os.Args[1] == "rotate-password" {
@@ -41,6 +41,10 @@ func main() {
 		os.Exit(1)
 	}
 	s := newServer(c)
+	if e = s.loadMembers(); e != nil {
+		fmt.Fprintln(os.Stderr, e)
+		os.Exit(1)
+	}
 	if e = s.loadHistory(); e != nil {
 		fmt.Fprintln(os.Stderr, e)
 		os.Exit(1)

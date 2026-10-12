@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { generateKeyPair, verify, type Identity } from "../src/crypto.js";
 import {
@@ -115,6 +116,44 @@ function serve(identity: Identity, admission: SignedTicket, script: (socket: Fak
 }
 
 describe("RelaySession (fake socket)", () => {
+  it("replays the shared public member frame vectors", async () => {
+    const frames=JSON.parse(readFileSync(new URL("../../../protocol/member-order-v1-vectors.json",import.meta.url),"utf8")).frames;
+    const identity=await generateKeyPair();const admission=makeAdmission(identity.publicKey);
+    const connecting=RelaySession.connect("wss://x",admission,identity,{webSocketFactory:factory,keepalive:false});
+    serve(identity,admission,s=>{s.handler=frame=>{if(frame.kind==="subscribe") for(const fixture of frames.slice(1))s.deliver(fixture);};});
+    const session=await connecting;const received:any[]=[];session.on("receive",(value,meta)=>received.push({value,meta}));
+    await session.subscribe("chat");
+    expect(session.members("chat").map(m=>m.peer)).toEqual(["11".repeat(16),"23".repeat(16)]);
+    expect(received[0].meta).toMatchObject({peer:"22".repeat(16),key:"a2".repeat(32),joinSeq:2});session.close();
+  });
+
+  it("applies a subscription snapshot before following increments and preserves connection identity", async () => {
+    const identity=await generateKeyPair(); const admission=makeAdmission(identity.publicKey);
+    const connecting=RelaySession.connect("wss://x",admission,identity,{webSocketFactory:factory,keepalive:false});
+    serve(identity,admission,s => { s.handler=frame => {
+      if(frame.kind!=="subscribe") return;
+      s.deliver({v:PROTOCOL,kind:"join",channel:"chat",peer:"old",key:"old-key",joinSeq:9});
+      s.deliver({v:PROTOCOL,kind:"ack",id:frame.id,value:{members:[
+        {peer:PEER_ID,key:identity.publicKey,joinSeq:1},
+        {peer:"second",key:"same-key",joinSeq:2},
+        {peer:"second-tab",key:"same-key",joinSeq:2}
+      ]}});
+      // Delivered before subscribe().then runs: must survive the snapshot.
+      s.deliver({v:PROTOCOL,kind:"join",channel:"chat",peer:"third",key:"third-key",joinSeq:3});
+      s.deliver({v:PROTOCOL,kind:"leave",channel:"chat",peer:"second",key:"same-key",joinSeq:2});
+    }; });
+    const session=await connecting; const updates:unknown[]=[];
+    session.on("members",members => updates.push(members));
+    await session.subscribe("chat");
+    expect(session.members("chat").map(m=>[m.peer,m.joinSeq])).toEqual([[PEER_ID,1],["second-tab",2],["third",3]]);
+    expect(new Set(session.members("chat").map(m=>m.key)).size).toBe(3);
+    expect(Object.isFrozen(session.members("chat"))).toBe(true);
+    expect(Object.isFrozen(session.members("chat")[0])).toBe(true);
+    expect(session.members("table")).toEqual([]);
+    session.close();expect(session.members("chat")).toEqual([]);expect(updates.length).toBeGreaterThan(3);
+  });
+
+
   it("performs the four-frame handshake and binds the proof to the challenge", async () => {
     const identity = await generateKeyPair();
     const admission = makeAdmission(identity.publicKey);

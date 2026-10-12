@@ -21,8 +21,10 @@ components:
                 - admission
             type: object
         AllocationBody:
-            description: proof is the HMAC over the request with the password-derived verifier and is required when the server announces auth=password; turnstile is a Cloudflare Turnstile token and is required when the server announces turnstile=true. Idempotent replays with the same requestId return the original descriptor without re-verifying either.
+            description: Authorization selects itself by the attestation mode the server announces in discovery (auth field). password mode requires proof, the HMAC over the request with the password-derived verifier. turnstile modes accept a Cloudflare Turnstile token directly, and every attestation mode accepts a grant obtained from /api/v1/verify (turnstile exchanged) or /api/v1/auth/oauth/login (OAuth2 identity); grants are the preferred credential and bind the attestation to the request host key. Idempotent replays with the same requestId return the original descriptor without re-verifying anything.
             properties:
+                grant:
+                    $ref: '#/components/schemas/SignedGrant'
                 proof:
                     pattern: ^[0-9a-f]{64}$
                     type: string
@@ -125,6 +127,9 @@ components:
             type: object
         Discovery:
             properties:
+                stableMemberOrder:
+                    type: boolean
+                    description: Durable room member order is enabled; optional and false when absent.
                 algorithm:
                     enum:
                         - PBKDF2-HMAC-SHA256
@@ -134,6 +139,9 @@ components:
                         - password
                         - anonymous
                         - "off"
+                        - turnstile
+                        - oauth
+                        - turnstile+oauth
                     type: string
                 iterations:
                     format: int32
@@ -152,6 +160,9 @@ components:
                     type: object
                 origin:
                     type: string
+                oauthLogin:
+                    description: Path of the OAuth2 login endpoint; present when the relay is configured for oauth attestation.
+                    type: string
                 protocol:
                     enum:
                         - romzo/v1
@@ -161,6 +172,12 @@ components:
                     type: string
                 turnstile:
                     type: boolean
+                turnstileSiteKey:
+                    description: Public Cloudflare Turnstile site key for SDK-rendered widgets; present when configured.
+                    type: string
+                verify:
+                    description: Path of the grant exchange endpoint; present when Turnstile attestation is configured.
+                    type: string
                 version:
                     type: string
             required:
@@ -180,6 +197,55 @@ components:
                     type: string
             required:
                 - error
+            type: object
+        Grant:
+            description: Relay-signed attestation credential. Single-use, five-minute validity, and bound to the creator's Ed25519 host key, so an intercepted grant is worthless without the matching private key. provider is turnstile, oauth:<name>, or turnstile+oauth:<name> depending on which attestations succeeded; subject carries the provider identity (e.g. the OAuth login) when there is one.
+            properties:
+                expires:
+                    format: int64
+                    type: integer
+                host:
+                    pattern: ^[0-9a-f]{64}$
+                    type: string
+                nonce:
+                    pattern: ^[0-9a-f]{32}$
+                    type: string
+                origin:
+                    type: string
+                protocol:
+                    enum:
+                        - romzo/v1
+                    type: string
+                provider:
+                    type: string
+                subject:
+                    type: string
+            required:
+                - protocol
+                - origin
+                - provider
+                - subject
+                - host
+                - expires
+                - nonce
+            type: object
+        SignedGrant:
+            properties:
+                grant:
+                    $ref: '#/components/schemas/Grant'
+                signature:
+                    pattern: ^[0-9a-f]{64}$
+                    type: string
+            required:
+                - grant
+                - signature
+            type: object
+        VerifyResponse:
+            properties:
+                grant:
+                    $ref: '#/components/schemas/SignedGrant'
+            required:
+                - grant
             type: object
         RoomRecord:
             properties:
@@ -381,9 +447,107 @@ components:
 info:
     description: Room allocation and encrypted fan-out relay for the romzo/v1 protocol. The server forwards client-signed envelopes verbatim; it holds no game rules, keys, or state beyond room lifecycles. All requests reject query strings; browser origins are checked against the server allowlist; every route is per-IP rate limited.
     title: Romzo Relay
-    version: 1.3.1
+    version: 1.4.0
 openapi: 3.0.3
 paths:
+    /api/v1/auth/oauth/callback:
+        get:
+            description: OAuth2 redirect target registered with the identity provider. Exchanges the authorization code for an access token, reads the configured identity field from the userinfo endpoint, then either renders the grant completion page (oauth mode) or the Cloudflare Turnstile gate that finishes a combined turnstile+oauth attestation. Both pages report the result to the opening window via postMessage with type romzo-grant or romzo-grant-error and keep a copy of the grant visible as a manual fallback. Query parameters are rejected on every other route.
+            parameters:
+                - in: query
+                  name: code
+                  schema:
+                      type: string
+                - in: query
+                  name: state
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: Verification page rendered.
+                "403":
+                    description: Provider denial, expired/replayed state, token exchange or userinfo failure.
+            summary: OAuth2 authorization callback
+    /api/v1/auth/oauth/login:
+        get:
+            description: Starts the OAuth2 authorization-code flow. Requires the creator Ed25519 host key as the host query parameter so the issued grant binds to it; responds with a 302 redirect to the configured authorize endpoint. Disabled (404) when OAUTH_CLIENT_ID is unset.
+            parameters:
+                - in: query
+                  name: host
+                  required: true
+                  schema:
+                      pattern: ^[0-9a-f]{64}$
+                      type: string
+            responses:
+                "302":
+                    description: Redirect to the identity provider.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Malformed host key.
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: OAuth attestation not configured.
+            summary: Start an OAuth2 login for room creation
+    /api/v1/verify:
+        post:
+            description: Exchanges a Cloudflare Turnstile token for a SignedGrant bound to the creator host key (optionally also to a one-time OAuth session from the combined flow, producing a turnstile+oauth grant). Disabled (404) when Turnstile attestation is not configured.
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            additionalProperties: false
+                            properties:
+                                host:
+                                    pattern: ^[0-9a-f]{64}$
+                                    type: string
+                                session:
+                                    description: One-time OAuth session token from the combined flow; omit in turnstile-only mode.
+                                    type: string
+                                turnstile:
+                                    type: string
+                            required:
+                                - turnstile
+                                - host
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/VerifyResponse'
+                    description: Grant for the allocation endpoint.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Malformed request body.
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Turnstile token rejected or session expired.
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Turnstile attestation not configured.
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Per-IP token bucket exhausted.
+            summary: Exchange a Turnstile token for a creation grant
     /api/v1/admin/rooms/stop:
         post:
             description: Requires METRICS_KEY. Disconnects every peer and rejects currently valid restore tickets. Not an IP ban. A save failure reports 500 after the room has stopped; restart durability then is not guaranteed.
@@ -440,7 +604,7 @@ paths:
             summary: Stop a room
     /.well-known/romzo:
         get:
-            description: 'Public parameters a client needs before allocating a room: PBKDF2 salt for password-derived proofs, whether creation requires a password proof and/or a Cloudflare Turnstile token, and relay rate limits.'
+            description: 'Public parameters a client needs before allocating a room: PBKDF2 salt for password-derived proofs, the attestation mode for room creation (password / turnstile / oauth / turnstile+oauth, plus the grant exchange and OAuth login paths when configured), and relay rate limits.'
             responses:
                 "200":
                     content:
@@ -499,7 +663,7 @@ paths:
             summary: Mint a single-use creation challenge
     /api/v1/rooms:
         post:
-            description: Creates an unconfirmed room reservation. Optionally enforces a Cloudflare Turnstile token and/or a password proof, both checked only at this step; the reservation itself must be confirmed by the host via the confirm endpoint before peers can join.
+            description: Creates an unconfirmed room reservation. Enforces the attestation mode announced in discovery (password proof, Cloudflare Turnstile token, or a grant from /api/v1/verify or /api/v1/auth/oauth/login); the reservation itself must be confirmed by the host via the confirm endpoint before peers can join.
             requestBody:
                 content:
                     application/json:

@@ -70,17 +70,59 @@ export interface SignedTicket {
 }
 
 /** Discovery document from GET /.well-known/romzo. */
+export interface Member {
+  readonly peer: string;
+  readonly key: string;
+  /** Room-wide first authenticated join order; absent when durable numbering is disabled. */
+  readonly joinSeq?: number;
+}
+
 export interface Discovery {
+  /** Durable, identity-based room member order is enabled. */
+  stableMemberOrder?: boolean;
   protocol: string;
   version: string;
   origin: string;
-  auth: "password" | "anonymous" | "off" | (string & {});
+  /** Attestation mode: password / anonymous / off / turnstile / oauth / turnstile+oauth. */
+  auth: "password" | "anonymous" | "off" | "turnstile" | "oauth" | "turnstile+oauth" | (string & {});
   salt: string;
   iterations: number;
   algorithm: string;
   /** Whether the relay enforces Cloudflare Turnstile on room creation. */
   turnstile: boolean;
+  /** Public Turnstile site key for SDK-rendered widgets; present when configured. */
+  turnstileSiteKey?: string;
+  /** Grant exchange endpoint path (POST), present when Turnstile is configured. */
+  verify?: string;
+  /** OAuth2 login endpoint path, present when oauth attestation is configured. */
+  oauthLogin?: string;
   limits?: { framesPerSecond: number; bytesPerSecond: number };
+}
+
+/** Relay-signed creation grant: the single credential allocate() trusts. */
+export interface Grant {
+  protocol: string;
+  origin: string;
+  /** "turnstile", "oauth:<name>", or "turnstile+oauth:<name>". */
+  provider: string;
+  /** Provider identity (e.g. the OAuth login); empty for Turnstile. */
+  subject: string;
+  /** Creator Ed25519 host key the grant is bound to. */
+  host: string;
+  /** Expiry as Unix milliseconds; grants live five minutes. */
+  expires: number;
+  nonce: string;
+}
+
+/** Grant plus the relay's HMAC-SHA256 signature (key never leaves the relay). */
+export interface SignedGrant {
+  grant: Grant;
+  signature: string;
+}
+
+/** POST /verify response. */
+export interface VerifyResponse {
+  grant: SignedGrant;
 }
 
 /** POST /room-challenges response. */
@@ -107,6 +149,7 @@ export interface RestoreResponse {
 
 /** Server-side frame shapes on the WebSocket (see FRAMES.md). */
 export interface ServerFrame {
+  joinSeq?: number;
   v: string;
   kind: string;
   id?: string;

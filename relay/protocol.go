@@ -18,7 +18,9 @@ import (
 )
 
 const protocol = "romzo/v1"
-const version = "1.3.1"
+const version = "1.4.0"
+const grantDomain = "romzo/relay-grant/v1"
+const grantTTL = 5 * time.Minute
 const api = "/api/v1/"
 const wsPath = "/ws"
 const controlLimit = 16 * 1024
@@ -200,6 +202,26 @@ type Ticket struct {
 }
 type SignedTicket struct {
 	Ticket    Ticket `json:"ticket"`
+	Signature string `json:"signature"`
+}
+
+// Grant is the single credential the relay trusts for room creation. It is
+// issued by an attestation endpoint (Turnstile verification, OAuth2 login, or
+// a combination) and binds the attestation to the creator's Ed25519 host key,
+// so intercepting a grant without the matching private key is useless.
+type Grant struct {
+	Protocol string `json:"protocol"`
+	Origin   string `json:"origin"`
+	// Attestation provider: "turnstile", "oauth:<name>", "turnstile+oauth:<name>".
+	Provider string `json:"provider"`
+	// Provider-specific identity (e.g. the OAuth login); empty for Turnstile.
+	Subject string `json:"subject"`
+	Host    string `json:"host"`
+	Expires int64  `json:"expires"`
+	Nonce   string `json:"nonce"`
+}
+type SignedGrant struct {
+	Grant     Grant  `json:"grant"`
 	Signature string `json:"signature"`
 }
 

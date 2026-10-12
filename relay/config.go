@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -16,12 +18,17 @@ type Config struct {
 	NodeOutboundBytesPerSecond                   int
 	Listen, Origin, Auth                         string
 	MetricsHistoryFile                           string
+	MemberStateFile                              string
 	RecordCreatorIP                              bool
 	MaxRoomBytes                                 int64
 	MaxRoomSeconds                               int
 	MetricsKey                                   string
-	Salt, TicketKey, Verifier                    []byte
+	Salt, TicketKey, GrantKey                    []byte
+	Verifier                                     []byte
 	TurnstileSecret, TurnstileURL                string
+	TurnstileSiteKey, TurnstileAction            string
+	TurnstileHostnames                           []string
+	OAuth                                        OAuthConfig
 	ClientOrigins                                []string
 	AdminOrigins                                 []string
 	TrustedProxies                               []*net.IPNet
@@ -67,8 +74,39 @@ func config() (Config, error) {
 	if e != nil || len(c.TicketKey) != 32 {
 		return c, errors.New("TICKET_KEY must be 32 bytes of hex")
 	}
-	switch c.Auth {
-	case "password":
+	originHostname := u.Hostname()
+	c.TurnstileSecret, e = secretEnv("TURNSTILE_SECRET")
+	if e != nil {
+		return c, e
+	}
+	if c.TurnstileSecret != "" {
+		c.TurnstileURL = os.Getenv("TURNSTILE_VERIFY_URL")
+		if c.TurnstileURL == "" {
+			c.TurnstileURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+		}
+		u, e := url.Parse(c.TurnstileURL)
+		if e != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+			return c, errors.New("invalid TURNSTILE_VERIFY_URL")
+		}
+		c.TurnstileSiteKey = strings.TrimSpace(os.Getenv("TURNSTILE_SITEKEY"))
+		c.TurnstileAction = strings.ToLower(strings.TrimSpace(os.Getenv("TURNSTILE_ACTION")))
+		if c.TurnstileAction != "" && !turnstileActionPattern.MatchString(c.TurnstileAction) {
+			return c, errors.New("invalid TURNSTILE_ACTION")
+		}
+		hosts := strings.Split(env("TURNSTILE_HOSTNAMES", originHostname), ",")
+		for _, h := range hosts {
+			h = strings.ToLower(strings.TrimSpace(h))
+			if h == "" || strings.ContainsAny(h, "/?#@: ") || len(h) > 253 {
+				return c, errors.New("invalid TURNSTILE_HOSTNAMES")
+			}
+			c.TurnstileHostnames = append(c.TurnstileHostnames, h)
+		}
+	}
+	mode, e := parseCreateMode(c.Auth)
+	if e != nil {
+		return c, e
+	}
+	if mode.password {
 		password, err := secretEnv("CREATE_PASSWORD")
 		if err != nil {
 			return c, err
@@ -80,9 +118,41 @@ func config() (Config, error) {
 		if e != nil {
 			return c, e
 		}
-	case "anonymous", "off":
-	default:
-		return c, errors.New("invalid CREATE_AUTH")
+	}
+	grantKey, e := secretEnv("GRANT_KEY")
+	if e != nil {
+		return c, e
+	}
+	if grantKey != "" {
+		c.GrantKey, e = hex.DecodeString(grantKey)
+		if e != nil || len(c.GrantKey) != 32 {
+			return c, errors.New("GRANT_KEY must be 32 bytes of hex")
+		}
+	}
+	if (mode.turnstile || mode.oauth) && c.GrantKey == nil {
+		return c, errors.New("GRANT_KEY required when CREATE_AUTH includes turnstile or oauth")
+	}
+	c.OAuth, e = oauthConfig()
+	if e != nil {
+		return c, e
+	}
+	if mode.oauth && !c.OAuth.configured() {
+		return c, errors.New("CREATE_AUTH includes oauth but OAUTH_CLIENT_ID is not set")
+	}
+	if c.OAuth.configured() && !mode.oauth {
+		return c, errors.New("OAUTH_CLIENT_ID set but CREATE_AUTH does not include oauth")
+	}
+	if mode.turnstile && c.TurnstileSecret == "" {
+		return c, errors.New("CREATE_AUTH includes turnstile but TURNSTILE_SECRET is not set")
+	}
+	// Explicitness guard: with a Turnstile secret configured, creation must
+	// name turnstile in CREATE_AUTH. Silently downgrading to password/anonymous
+	// would disable the protection a previous deployment relied on.
+	if c.TurnstileSecret != "" && !mode.turnstile {
+		return c, errors.New("TURNSTILE_SECRET requires turnstile in CREATE_AUTH")
+	}
+	if mode.turnstile && mode.oauth && os.Getenv("TURNSTILE_SITEKEY") == "" {
+		return c, errors.New("TURNSTILE_SITEKEY required for combined turnstile+oauth")
 	}
 	c.MetricsKey, e = secretEnv("METRICS_KEY")
 	if e != nil {
@@ -96,20 +166,6 @@ func config() (Config, error) {
 			if ch < 33 || ch > 126 {
 				return c, errors.New("invalid METRICS_KEY character")
 			}
-		}
-	}
-	c.TurnstileSecret, e = secretEnv("TURNSTILE_SECRET")
-	if e != nil {
-		return c, e
-	}
-	if c.TurnstileSecret != "" {
-		c.TurnstileURL = os.Getenv("TURNSTILE_VERIFY_URL")
-		if c.TurnstileURL == "" {
-			c.TurnstileURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
-		}
-		u, e := url.Parse(c.TurnstileURL)
-		if e != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
-			return c, errors.New("invalid TURNSTILE_VERIFY_URL")
 		}
 	}
 	c.ClientOrigins = strings.Split(env("CLIENT_ORIGINS", c.Origin), ",")
@@ -151,6 +207,14 @@ func config() (Config, error) {
 		return c, errors.New("invalid RECORD_CREATOR_IP")
 	}
 	c.MetricsHistoryFile = os.Getenv("METRICS_HISTORY_FILE")
+	c.MemberStateFile = os.Getenv("MEMBER_STATE_FILE")
+	if c.MemberStateFile != "" && c.MetricsHistoryFile != "" {
+		memberPath, memberErr := filepath.Abs(c.MemberStateFile)
+		metricsPath, metricsErr := filepath.Abs(c.MetricsHistoryFile)
+		if memberErr != nil || metricsErr != nil || strings.EqualFold(memberPath, metricsPath) {
+			return c, errors.New("member and metrics state files must differ")
+		}
+	}
 	c.MaxRoomBytes, e = strconv.ParseInt(env("MAX_ROOM_TRAFFIC_BYTES", "0"), 10, 64)
 	if e != nil || c.MaxRoomBytes < 0 || c.MaxRoomBytes > 1<<52 {
 		return c, errors.New("invalid MAX_ROOM_TRAFFIC_BYTES")
@@ -191,6 +255,53 @@ func validateOrigins(origins []string) error {
 		origins[i] = origin
 	}
 	return nil
+}
+
+var turnstileActionPattern = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
+
+// oauthConfig reads the generic OAuth2 client settings. All or nothing:
+// setting any OAUTH_* value requires the full client set.
+func oauthConfig() (OAuthConfig, error) {
+	c := OAuthConfig{
+		Provider:     strings.ToLower(strings.TrimSpace(os.Getenv("OAUTH_PROVIDER"))),
+		ClientID:     os.Getenv("OAUTH_CLIENT_ID"),
+		AuthorizeURL: strings.TrimSpace(os.Getenv("OAUTH_AUTHORIZE_URL")),
+		TokenURL:     strings.TrimSpace(os.Getenv("OAUTH_TOKEN_URL")),
+		UserInfoURL:  strings.TrimSpace(os.Getenv("OAUTH_USERINFO_URL")),
+		NameField:    strings.TrimSpace(os.Getenv("OAUTH_NAME_FIELD")),
+	}
+	any := c.Provider != "" || c.ClientID != "" || c.AuthorizeURL != "" || c.TokenURL != "" || c.UserInfoURL != "" || os.Getenv("OAUTH_CLIENT_SECRET") != "" || os.Getenv("OAUTH_SCOPES") != "" || c.NameField != ""
+	if !any {
+		return c, nil
+	}
+	if c.Provider == "" {
+		c.Provider = "generic"
+	}
+	if c.ClientID == "" || c.AuthorizeURL == "" || c.TokenURL == "" || c.UserInfoURL == "" {
+		return c, errors.New("OAUTH_CLIENT_ID, OAUTH_AUTHORIZE_URL, OAUTH_TOKEN_URL and OAUTH_USERINFO_URL are required together")
+	}
+	c.ClientSecret, _ = secretEnv("OAUTH_CLIENT_SECRET")
+	if c.ClientSecret == "" {
+		return c, errors.New("OAUTH_CLIENT_SECRET required")
+	}
+	for _, endpoint := range []struct{ name, raw string }{{"OAUTH_AUTHORIZE_URL", c.AuthorizeURL}, {"OAUTH_TOKEN_URL", c.TokenURL}, {"OAUTH_USERINFO_URL", c.UserInfoURL}} {
+		u, e := url.Parse(endpoint.raw)
+		loopback := u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1"
+		if e != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && !(u.Scheme == "http" && loopback)) {
+			return c, errors.New("invalid " + endpoint.name + ": HTTPS required (HTTP only on loopback)")
+		}
+	}
+	if c.NameField == "" {
+		c.NameField = "login"
+	}
+	if scopes := strings.TrimSpace(os.Getenv("OAUTH_SCOPES")); scopes != "" {
+		for _, scope := range strings.Split(scopes, ",") {
+			if scope = strings.TrimSpace(scope); scope != "" {
+				c.Scopes = append(c.Scopes, scope)
+			}
+		}
+	}
+	return c, nil
 }
 
 func secretEnv(name string) (string, error) {
