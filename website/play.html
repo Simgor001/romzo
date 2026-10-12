@@ -77,7 +77,7 @@
     <div class="code-head">
       <span class="play-step">02</span>
       <h2 id="chat-title"><span class="l-en">Exchange messages</span><span class="l-zh">互发消息</span></h2>
-      <span class="grow"></span><span class="code-tag">LIVE</span>
+      <span class="grow"></span><span class="play-presence" id="connection-badge" data-state="idle"><span class="l-en">Not connected</span><span class="l-zh">未连接</span></span>
     </div>
     <div class="play-log" id="log" role="log" aria-live="polite" aria-labelledby="chat-title"><div class="play-empty"><span class="l-en">Messages will appear here after you create or join a room.</span><span class="l-zh">创建或加入房间后，消息会显示在这里。</span></div></div>
     <div class="play-compose">
@@ -162,13 +162,48 @@ async function verificationToken() {
   });
 }
 
-function log(text, cls) {
-  const p = document.createElement('p');
-  if (cls) p.className = cls;
-  p.textContent = text;
+const peers = new Set();
+const peerNames = new Map();
+let connected = false;
+function bilingual(en, zh) {
+  const span = document.createElement('span');
+  for (const [language, text] of [['en', en], ['zh', zh]]) {
+    const label = document.createElement('span'); label.className = 'l-' + language; label.textContent = text; span.append(label);
+  }
+  return span;
+}
+function appendLog(node) {
+  const nearBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 48;
   logEl.querySelector('.play-empty')?.remove();
-  logEl.append(p);
-  logEl.scrollTop = logEl.scrollHeight;
+  logEl.append(node);
+  if (nearBottom) logEl.scrollTop = logEl.scrollHeight;
+}
+function systemMessage(en, zh) {
+  const row = document.createElement('div'); row.className = 'play-system'; row.append(bilingual(en, zh)); appendLog(row);
+}
+function message(text, mine, peer) {
+  const row = document.createElement('div'); row.className = 'play-message ' + (mine ? 'is-mine' : 'is-peer');
+  const meta = document.createElement('div'); meta.className = 'play-message-meta';
+  if (!mine && !peerNames.has(peer)) peerNames.set(peer, peerNames.size + 1);
+  meta.append(bilingual(mine ? 'You' : 'Participant ' + peerNames.get(peer), mine ? '你' : '参与者 ' + peerNames.get(peer)));
+  const time = document.createElement('time'); time.dateTime = new Date().toISOString(); meta.append(time);
+  const body = document.createElement('p'); body.className = 'play-message-body'; body.textContent = text;
+  row.append(meta, body); appendLog(row); refreshLanguage();
+}
+function refreshLanguage() {
+  const zh = document.documentElement.dataset.lang === 'zh';
+  document.getElementById('message').placeholder = zh ? '输入消息…' : 'Type a message…';
+  for (const time of logEl.querySelectorAll('time')) time.textContent = new Date(time.dateTime).toLocaleTimeString(zh ? 'zh-CN' : 'en-GB', {hour: '2-digit', minute: '2-digit'});
+}
+new MutationObserver(refreshLanguage).observe(document.documentElement, {attributes: true, attributeFilter: ['data-lang']});
+refreshLanguage();
+function updatePresence() {
+  const badge = document.getElementById('connection-badge');
+  badge.dataset.state = connected ? 'online' : 'idle';
+  badge.replaceChildren(bilingual(connected ? (peers.size + 1) + ' online' : 'Not connected', connected ? (peers.size + 1) + ' 人在线' : '未连接'));
+  if (!connected) return;
+  if (peers.size) setStatus('Connected · Enter to send', '已连接 · 按 Enter 发送');
+  else setStatus('Waiting for someone to join · Share your invite', '等待其他人加入 · 可分享邀请链接');
 }
 function setStatus(en, zh) {
   statusEls[0].textContent = en; statusEls[1].textContent = zh;
@@ -177,20 +212,26 @@ function socketFactory(url) { return new WebSocket(url); }
 const wsUrl = ORIGIN.replace(/^http/, 'ws') + '/ws';
 const roomOptions = { app: 'romzo-playground', channels: [{ name: CHANNEL, maxFrameBytes: 16384 }] };
 
-async function openSession(admission, transport, label) {
+async function openSession(admission, transport) {
   session = await RelaySession.connect(wsUrl, admission, transport, { webSocketFactory: socketFactory });
-  session.on('receive', (value, { peer }) => log(`[${label}] ${JSON.stringify(value)} <${peer.slice(0, 8)}…>`));
-  session.on('join', (_p, meta) => log(`peer joined: ${meta.key ? meta.key.slice(0, 8) + '…' : '?'}`, 'sys'));
-  session.on('leave', (_p, meta) => log(`peer left: ${meta.key ? meta.key.slice(0, 8) + '…' : '?'}`, 'sys'));
+  session.on('receive', (value, {peer}) => {
+    if (typeof value?.text === 'string') message(value.text, false, peer);
+    else systemMessage('Received an unsupported message', '收到不支持的消息');
+  });
+  session.on('join', (_p, {peer}) => { peers.add(peer); systemMessage('Someone joined', '有人加入了房间'); updatePresence(); });
+  session.on('leave', (_p, {peer}) => { peers.delete(peer); systemMessage('Someone left', '有人离开了房间'); updatePresence(); });
   session.on('close', () => {
     document.getElementById('message').disabled = true;
     document.getElementById('send').disabled = true;
     setStatus('Disconnected. Reload to join again.', '连接已断开，刷新页面重新加入。');
-    log('session closed', 'sys');
+    connected = false; peers.clear(); updatePresence();
+    systemMessage('Connection closed', '连接已断开');
   });
-  await session.subscribe(CHANNEL);
+  try { await session.subscribe(CHANNEL); }
+  catch (error) { session.close(); session = null; throw error; }
   document.getElementById('message').disabled = false;
   document.getElementById('send').disabled = false;
+  connected = true; updatePresence();
 }
 
 // Host flow
@@ -207,12 +248,11 @@ document.getElementById('create').addEventListener('click', async () => {
     document.getElementById('room-code-zh').textContent = room.descriptor.code;
     document.getElementById('invite-link').textContent = invite;
     document.getElementById('create-result').hidden = false;
-    await openSession(room.admission, room.transport, 'host');
-    setStatus('Hosting room ' + room.descriptor.code + ' — waiting for a guest…',
-              '正在主持房间 ' + room.descriptor.code + '——等待访客加入…');
-    log('room created: ' + room.descriptor.code, 'sys');
+    await openSession(room.admission, room.transport);
+    systemMessage('Room created · Share your invite to start', '房间已创建 · 分享邀请即可开始');
+    updatePresence();
   } catch (e) {
-    log('create failed: ' + (e && e.message ? e.message : e), 'sys');
+    systemMessage('Could not create the room. Please try again.', '创建房间失败，请重试。');
     setStatus('Room creation failed. Try again.', '创建失败，请重试。');
   } finally {
     if (widgetId !== null) {
@@ -226,25 +266,31 @@ document.getElementById('create').addEventListener('click', async () => {
 
 document.getElementById('copy-invite').addEventListener('click', async () => {
   const link = document.getElementById('invite-link').textContent;
-  try { await navigator.clipboard.writeText(link); log('invite copied', 'sys'); }
-  catch { log('copy failed — select the link manually', 'sys'); }
+  try { await navigator.clipboard.writeText(link); systemMessage('Invite copied', '邀请链接已复制'); }
+  catch { systemMessage('Copy failed. Select the link to copy it manually.', '复制失败，请手动选中链接复制。'); }
 });
 
+let sending = false;
 document.getElementById('send').addEventListener('click', async () => {
   const input = document.getElementById('message');
   const value = input.value.trim();
   if (!value) return;
-  if (!session) { log('no session yet', 'sys'); return; }
+  if (!connected || sending) return;
+  sending = true;
+  document.getElementById('send').disabled = true;
   try {
     await session.send(CHANNEL, { text: value });
-    log('me: ' + value, 'me');
-    input.value = '';
+    message(value, true);
+    if (input.value.trim() === value) input.value = '';
   } catch (e) {
-    log('send failed: ' + (e && e.message ? e.message : e), 'sys');
+    systemMessage('Message was not sent. Please try again.', '消息未发送成功，请重试。');
+  } finally {
+    sending = false;
+    document.getElementById('send').disabled = !connected;
   }
 });
 document.getElementById('message').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('send').click();
+  if (e.key === 'Enter' && !e.isComposing) document.getElementById('send').click();
 });
 
 // Guest flow: open an invite link, e.g. https://romzo.net/play.html#ABCD123XYZ@romzo.net
@@ -253,17 +299,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   let parsed = null;
   try { parsed = parseInviteHash(location.hash, inviteOptions); } catch { /* invalid hash */ }
   if (!parsed) return;
-  if (parsed.origin !== ORIGIN) { log('invite points to another relay: ' + parsed.origin, 'sys'); return; }
+  if (parsed.origin !== ORIGIN) { systemMessage('This invite uses another relay.', '此邀请使用其他中继。'); return; }
   document.getElementById('create').disabled = true;
   setStatus('Joining room ' + parsed.code + '…', '正在加入房间 ' + parsed.code + '…');
   try {
     const guest = await joinRoom(ORIGIN, parsed.code);
-    await openSession(guest.admission, guest.transport, 'guest');
-    setStatus('Joined room ' + parsed.code + ' — say hi below.',
-              '已加入房间 ' + parsed.code + '——在下方打个招呼吧。');
-    log('joined room: ' + parsed.code, 'sys');
+    await openSession(guest.admission, guest.transport);
+    systemMessage('Joined the room', '已加入房间');
+    updatePresence();
   } catch (e) {
-    log('join failed: ' + (e && e.message ? e.message : e), 'sys');
+    systemMessage('Could not join the room.', '加入房间失败。');
     setStatus('Join failed.', '加入失败。');
   }
 });
