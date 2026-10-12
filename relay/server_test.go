@@ -18,7 +18,7 @@ import (
 )
 
 func testConfig() Config {
-	return Config{Origin: "http://127.0.0.1", Auth: "anonymous", Salt: make([]byte, 32), TicketKey: bytes.Repeat([]byte{7}, 32), ClientOrigins: []string{"http://client.test"}, Rooms: 64, Connections: 512, Unauthenticated: 64, PerRoom: 32, FramesPerSecond: 64, BytesPerSecond: 1048576}
+	return Config{Origin: "http://127.0.0.1", Auth: "anonymous", Salt: make([]byte, 32), TicketKey: bytes.Repeat([]byte{7}, 32), ClientOrigins: []string{"http://client.test"}, AdminOrigins: []string{"http://client.test"}, Rooms: 64, Connections: 512, Unauthenticated: 64, PerRoom: 32, FramesPerSecond: 64, BytesPerSecond: 1048576}
 }
 func signed(key ed25519.PrivateKey, domain string, v any) string {
 	b, e := signingBytes(domain, v)

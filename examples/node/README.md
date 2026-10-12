@@ -27,7 +27,7 @@ in the environment file. Two more settings matter for this demo:
 
 - `PUBLIC_ORIGIN` must be the relay's own origin, e.g.
   `http://127.0.0.1:9224` (loopback HTTP is for development only).
-- `CLIENT_ORIGINS` must include the demo's WebSocket origin
+- For private relays, `CLIENT_ORIGINS` must include the demo's WebSocket origin; public relays may use `*`
   `https://chat.example.local` (the demo injects it via the `ws` factory).
 
 The default listen port is 9224; check readiness with

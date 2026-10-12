@@ -14,7 +14,7 @@ go run . init > ../deploy/.env.secrets
 
 1. Keep .env.secrets private.
 2. Copy `deploy/.env.example` to `deploy/.env` and fill its empty secret values locally.
-3. Set `PUBLIC_ORIGIN` and `CLIENT_ORIGINS`.
+3. Set `PUBLIC_ORIGIN`; use `CLIENT_ORIGINS=*` for public access or exact web origins for private access. Configure management UI origins separately in `ADMIN_ORIGINS`.
 4. From `relay/`, run `go run . --env-file ../deploy/.env`. The environment file is ignored by Git.
 
 The template lists both common and optional settings. Its connection, frame and
@@ -31,6 +31,8 @@ Do not expose the unencrypted listener publicly.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
+| `CLIENT_ORIGINS` | `PUBLIC_ORIGIN` | `*` allows arbitrary HTTP(S) web origins; private deployments use comma-separated exact origins (scheme, host, port; no path). Authentication and limits still apply. |
+| `ADMIN_ORIGINS` | `PUBLIC_ORIGIN` | Separate exact origin allowlist for metrics/admin; no wildcard. Management Bearer authentication still applies. |
 | `CREATE_AUTH` | — | `password` verifies a PBKDF2 challenge proof; `anonymous`/`off` skip that proof. |
 | `TURNSTILE_SECRET` | — (optional) | Independently enforces Turnstile on room creation only; enable it for a public anonymous demo. Idempotent allocation replays do not revalidate a spent Turnstile token. |
 | `*_FILE` variants | — | Private secret values may instead be supplied through the corresponding `*_FILE` variables. |
@@ -38,6 +40,10 @@ Do not expose the unencrypted listener publicly.
 | `TICKET_KEY` | — | Keep stable across normal restarts. Losing or rotating the ticket key invalidates recovery. |
 
 Rooms are memory-only: clients with unexpired recovery tickets restore the room and perform application-layer resynchronization after a restart.
+
+After rebuilding this source update, public services can set `CLIENT_ORIGINS=*` and restart the relay. Deployments managing the relay from another origin must explicitly set `ADMIN_ORIGINS`; management no longer inherits the game-client allowlist. Preserve existing secrets, creation policy and quotas. Published 1.3.0 images do not include this update; use a source build or wait for a new release.
+
+Local validation covers Go tests/race, SDK tests, and real public/private HTTP/WS clients with restart recovery. Chromium with two distinct web origins verifies cross-origin creation, signed authentication, bidirectional delivery, restart recovery, management isolation and private-mode denial. This does not establish deployment to romzo.net or full-game acceptance.
 
 ## Docker
 
@@ -62,7 +68,7 @@ docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up --build -
 - The image runs as an unprivileged user, with a read-only filesystem, dropped capabilities and a loopback host-port mapping.
 - It includes CA roots for outbound Turnstile HTTPS.
 - Configure your own domain and TLS; `deploy/nginx.conf` is a placeholder example.
-- Only configure `TRUSTED_PROXIES` for actual trusted proxy source CIDRs. CORS and WS origins must match exact `CLIENT_ORIGINS`; they do not establish identity.
+- Only configure `TRUSTED_PROXIES` for actual trusted proxy source CIDRs. Private HTTP/WS origins must match exact `CLIENT_ORIGINS`; public mode allows arbitrary HTTP(S) origins. Origins do not establish identity. Non-browser WebSocket clients without Origin are allowed only in public mode; opaque browser `null` origins remain rejected.
 - The server does not host clients or redirects. A separate static-client configuration example is in `deploy/nginx-same-origin.conf`.
 
 Port convention:

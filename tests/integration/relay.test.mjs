@@ -25,7 +25,8 @@ function receive(session) {
     const unsubscribe = session.on('receive', (value, meta) => { clearTimeout(timeout); unsubscribe(); resolve({value, meta}); });
   });
 }
-test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recovery', {timeout: 45000}, async () => {
+for (const publicMode of [false, true])
+test(`real local HTTP/WS (${publicMode ? 'public origins' : 'private origins'}): two SDK peers, renewal and restart recovery`, {timeout: 45000}, async () => {
   const directory = new URL('../../relay/', import.meta.url);
   const output = mkdtempSync(join(tmpdir(), 'romzo-integration-'));
   const binary = join(output, process.platform === 'win32' ? 'relay.exe' : 'relay');
@@ -34,7 +35,7 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
   const password = randomBytes(24).toString('hex');
   const env = {PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, LISTEN: new URL(origin).host, PUBLIC_ORIGIN: origin,
     CREATE_AUTH: 'password', CREATE_PASSWORD: password, AUTH_SALT: randomBytes(32).toString('hex'),
-    TICKET_KEY: randomBytes(32).toString('hex'), CLIENT_ORIGINS: clientOrigin,
+    TICKET_KEY: randomBytes(32).toString('hex'), CLIENT_ORIGINS: publicMode ? '*' : clientOrigin, ADMIN_ORIGINS: clientOrigin,
     METRICS_KEY: randomBytes(32).toString('hex'), METRICS_HISTORY_FILE: join(output, 'history.json'),
     RECORD_CREATOR_IP: 'true', MAX_ROOM_TRAFFIC_BYTES: '1073741824', MAX_ROOM_AGE_SECONDS: '21600'};
   let child; const sessions = [];
@@ -47,20 +48,37 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     }
     throw Error('local relay readiness timed out');
   }
-  const socketOptions = {webSocketFactory: url => new WebSocket(url, {headers: {Origin: clientOrigin}})};
+  const webOrigin = publicMode ? 'https://unregistered-game.example' : clientOrigin;
+  const httpOptions = {fetch: (url, init) => fetch(url, {...init, headers: {...init?.headers, Origin: webOrigin}})};
+  const socketOptions = {webSocketFactory: url => new WebSocket(url, {headers: {Origin: webOrigin}})};
   const wsUrl = origin.replace(/^http/, 'ws') + '/ws';
   try {
     execFileSync('go', ['build', '-trimpath', '-o', binary, '.'], {cwd: directory, stdio: 'pipe', windowsHide: true});
     await start();
-    const discoveryResponse = await fetch(origin + "/.well-known/romzo");
+    const discoveryResponse = await httpOptions.fetch(origin + "/.well-known/romzo");
     assert.equal(discoveryResponse.status, 200);
     assert.equal((await discoveryResponse.json()).protocol, "romzo/v1");
+    assert.equal(discoveryResponse.headers.get('access-control-allow-origin'), webOrigin);
+    if (publicMode) {
+      const denied = await fetch(origin+'/api/v1/metrics', {headers: {Origin: webOrigin, Authorization: 'Bearer '+env.METRICS_KEY}});
+      assert.equal(denied.status, 403);
+      const unauthenticated = await fetch(origin+'/api/v1/metrics', {headers: {Origin: clientOrigin}});
+      assert.equal(unauthenticated.status, 401);
+      const preflight = await fetch(origin+'/api/v1/rooms', {method: 'OPTIONS', headers: {Origin: webOrigin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type'}});
+      assert.equal(preflight.status, 204);
+      assert.equal(preflight.headers.get('access-control-allow-origin'), webOrigin);
+      await assert.rejects(createRoom(origin, {app: 'generic-example'}, httpOptions));
+      await assert.rejects(
+        createRoom(origin, {app: 'generic-example'}, {...httpOptions, password: randomBytes(24).toString('hex')}),
+        error => error.code === 'authorization_failed',
+      );
+    }
     const options = {app: 'generic-example', channels: [{name: 'table', maxFrameBytes: 262144}], players: 2, rules: ['draft', {dice: 6}], expansion: null};
-    const room = await createRoom(origin, options, {password});
+    const room = await createRoom(origin, options, {...httpOptions, password});
     assert.equal(room.discovery.version, '1.3.0');
     const invite = buildInviteLink(origin, room.descriptor.code, 'http://localhost:5190/', {allowLoopbackHttp: true});
     assert.equal(parseInviteHash(new URL(invite).hash, {allowLoopbackHttp: true}).origin, origin);
-    const guest = await joinRoom(origin, room.descriptor.code, {validateOptions: value => assert.deepEqual(value, options)});
+    const guest = await joinRoom(origin, room.descriptor.code, {...httpOptions, validateOptions: value => assert.deepEqual(value, options)});
     const hostSession = await RelaySession.connect(wsUrl, room.admission, room.transport, socketOptions); sessions.push(hostSession);
     const guestSession = await RelaySession.connect(wsUrl, guest.admission, guest.transport, socketOptions); sessions.push(guestSession);
     await hostSession.subscribe('table'); await guestSession.subscribe('table');
@@ -87,9 +105,9 @@ test('real local HTTP/WS: generic room, two SDK peers, renewal and restart recov
     const afterReload = await metrics();
     assert.equal(afterReload.roomHistory.trafficTop[0].id,beforeRestart.roomHistory.trafficTop[0].id);
     assert.ok(afterReload.roomHistory.trafficTop[0].sentBytes>0);
-    const restored = await restoreSession(room.signedDescriptor, recovery, room.transport);
+    const restored = await restoreSession(room.signedDescriptor, recovery, room.transport, httpOptions);
     const restoredHost = await RelaySession.connect(wsUrl, restored.admission, restored.transport, socketOptions); sessions.push(restoredHost);
-    const rejoined = await joinRoom(origin, room.descriptor.code);
+    const rejoined = await joinRoom(origin, room.descriptor.code, httpOptions);
     const restoredGuest = await RelaySession.connect(wsUrl, rejoined.admission, rejoined.transport, socketOptions); sessions.push(restoredGuest);
     await restoredHost.subscribe('table'); await restoredGuest.subscribe('table');
     const afterRestart = receive(restoredGuest); await restoredHost.send('table', {operation: 'resync', sequence: 2});

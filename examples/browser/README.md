@@ -22,7 +22,7 @@ share the invite link, join from a second tab, and exchange `chat` messages.
    # or: python -m http.server 8080
    ```
 
-   The relay checks the WebSocket `Origin` against `CLIENT_ORIGINS`
+   Private relays check the WebSocket `Origin` against `CLIENT_ORIGINS`; public relays may use `CLIENT_ORIGINS=*`
    (default: the relay's own `PUBLIC_ORIGIN`), so serve the page from an
    origin the relay accepts — `http://127.0.0.1:8080` works when the relay's
    `PUBLIC_ORIGIN`/`CLIENT_ORIGINS` include it.

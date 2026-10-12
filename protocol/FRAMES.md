@@ -55,7 +55,7 @@ Sending is checked against the channel's declared `maxFrameBytes`; the global 25
 
 - Endpoint: `GET /ws`, WebSocket text frames, **binary frames not supported**.
 - Every frame is a single JSON object with a `"v": "romzo/v1"` version field.
-- Origin must be in the relay's allowlist (browser scenarios); each IP has an independent token-bucket rate limit.
+- Private deployments require an exact `CLIENT_ORIGINS` match. `CLIENT_ORIGINS=*` permits arbitrary HTTP(S) browser origins and non-browser clients without Origin; opaque `null` origins are rejected. Management HTTP endpoints use the separate exact `ADMIN_ORIGINS` list and Bearer authentication. Each IP has an independent token-bucket rate limit.
 - Authentication must complete within **5 seconds** of connect, or the connection is dropped (no error frame).
 - After authentication, any valid frame must arrive within **45 seconds**, or the connection is dropped (a `keepalive` suffices).
 - Per-frame cap 288 KiB; slow writes are dropped after 5 seconds.

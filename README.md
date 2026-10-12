@@ -12,6 +12,8 @@ Wire protocol: **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
 
+Source updates pending release: public relays support `CLIENT_ORIGINS=*`, with management access isolated by `ADMIN_ORIGINS`. SDK renewal awaits recovery persistence and reports callback failures as bounded request errors. Published 1.3.0 server images and npm 0.3.0 do not include these source changes yet.
+
 | Component | Path | Description |
 | --- | --- | --- |
 | Relay server | `relay` | Room registration, signed tickets, channel membership and bounded forwarding. |

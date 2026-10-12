@@ -96,7 +96,7 @@ const session = await RelaySession.connect(wsUrl, restored.admission, restored.t
 
 ## Layered API
 
-Non-browser applications must still send a WebSocket Origin matching the server's `CLIENT_ORIGINS`; inject `webSocketFactory` to set headers (the integration tests in this repository use an application-side `ws` factory, a dev dependency for tests only).
+Private relays require a WebSocket Origin matching `CLIENT_ORIGINS`; public relays configured with `CLIENT_ORIGINS=*` also accept non-browser clients without Origin; inject `webSocketFactory` to set headers (the integration tests in this repository use an application-side `ws` factory, a dev dependency for tests only).
 The SDK does not persist keys or history state.
 
 | module | contents |
@@ -174,3 +174,5 @@ Callers may supply compatible non-extractable CryptoKeys, but those cannot be ex
 After a disconnect, the application layer handles gap detection, operation deduplication and history sync; see FRAMES.md for the delivery contract.
 
 Channel names are application-defined; an undeclared channel set is empty.
+
+Recovery acknowledgements wait for the `onRecovery` persistence callback. If it fails, the request rejects with `recovery_persistence_failed`; the socket remains usable and no unhandled promise rejection escapes the event handler.

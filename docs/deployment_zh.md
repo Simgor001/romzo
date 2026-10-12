@@ -13,7 +13,7 @@ go run . init > ../deploy/.env.secrets
 
 1. 妥善保管 .env.secrets。
 2. 把 `deploy/.env.example` 复制为 `deploy/.env`，在本地填入其中的空密钥值。
-3. 设置 `PUBLIC_ORIGIN` 与 `CLIENT_ORIGINS`。
+3. 设置 `PUBLIC_ORIGIN`；公共服务使用 `CLIENT_ORIGINS=*`，私有服务填写允许的网页来源；管理界面单独配置 `ADMIN_ORIGINS`。
 4. 在 `relay/` 中运行 `go run . --env-file ../deploy/.env`。环境文件已被 Git 忽略。
 
 模板列出常用和可选配置。连接、帧率和 IP 限流与内置默认值一致；模板中的三项
@@ -26,6 +26,8 @@ go run . init > ../deploy/.env.secrets
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
+| `CLIENT_ORIGINS` | `PUBLIC_ORIGIN` | `*` 开放任意 HTTP(S) 网页来源；私有部署使用逗号分隔的精确来源（协议、主机、端口，不带路径）。来源开放不跳过身份认证或限流。 |
+| `ADMIN_ORIGINS` | `PUBLIC_ORIGIN` | metrics/admin 的独立来源白名单，不允许 `*`，仍须管理 Bearer 密钥。 |
 | `CREATE_AUTH` | — | `password` 校验 PBKDF2 质询证明（proof）；`anonymous`/`off` 跳过该校验。 |
 | `TURNSTILE_SECRET` | —（可选） | 独立地仅在建房时强制 Turnstile；公网匿名演示应启用它。幂等分配重放不会重新校验已消耗的 Turnstile token。 |
 | `*_FILE` 变量 | — | 私钥值也可改经对应的 `*_FILE` 变量提供。 |
@@ -33,6 +35,10 @@ go run . init > ../deploy/.env.secrets
 | `TICKET_KEY` | — | 正常重启期间保持稳定。丢失或轮换票据密钥会使恢复失效。 |
 
 房间仅存内存：重启后，持有未过期恢复票据的客户端恢复房间，并执行应用层重同步。
+
+升级本次源码后，公共服务可设置 `CLIENT_ORIGINS=*` 并重启中继。此前从其他域名访问管理接口的部署须显式填写 `ADMIN_ORIGINS`；它不再沿用游戏客户端白名单。现有密钥、建房模式和限额应保持原配置。已发布的 1.3.0 镜像尚不包含此更新，应先使用本次源码构建产物，或等待新版本发布。
+
+本次本地验收覆盖 Go 常规/race、SDK、公共/私有模式的真实 HTTP/WS 双客户端及重启恢复。Chromium 的两个不同网页来源已验证跨来源建房、签名握手、双向收发、重启恢复、管理来源隔离与私有模式拒绝；这不代表 romzo.net 已部署，也不代表完整游戏对局通过。
 
 ## Docker
 
@@ -58,7 +64,7 @@ docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up --build -
 - 镜像以非特权用户运行，文件系统只读，capabilities 已收缩，主机端口映射到回环。
 - 镜像内含用于出站 Turnstile HTTPS 的 CA 根。
 - 自行配置域名与 TLS；`deploy/nginx.conf` 是占位示例。
-- 仅为实际可信的代理源 CIDR 配置 `TRUSTED_PROXIES`。CORS 与 WS 源站必须与 `CLIENT_ORIGINS` 精确匹配，它们不建立身份。
+- 仅为实际可信的代理源 CIDR 配置 `TRUSTED_PROXIES`。私有模式的 HTTP/WS 来源必须与 `CLIENT_ORIGINS` 精确匹配；公共模式允许任意 HTTP(S) 来源。来源不建立身份。缺少 Origin 的非浏览器 WS 客户端只在公共模式中允许；浏览器的 `null` 来源仍被拒绝。
 - 服务端不托管客户端或重定向。单独的静态客户端同源配置示例见 `deploy/nginx-same-origin.conf`。
 
 端口约定：中继默认监听回环 9224；邀请链接的服务默认端口为 443——TLS 由中继前的反向代理在 443 终结（nginx 将 `/ws`、`/api/v1/` 与 `/.well-known/romzo` 转发给中继），或由中继直接监听 443 并终结 TLS。其他端口的中继必须在邀请中显式写出。注意 Cloudflare 橙云代理不支持 5 位端口：使用 5 位端口时请用 DNS-only 记录 + 自有证书；Turnstile 不受影响。

@@ -323,6 +323,60 @@ describe("RelaySession (fake socket)", () => {
     session.close();
   });
 
+  it("waits for recovery persistence and reports failure without closing the socket", async () => {
+    const identity = await generateKeyPair();
+    const admission = makeAdmission(identity.publicKey);
+    let finish!: () => void;
+    const persisted = new Promise<void>(resolve => { finish = resolve; });
+    const save = vi.fn().mockImplementationOnce(() => persisted).mockRejectedValueOnce(new Error("storage unavailable"));
+    const connecting = RelaySession.connect("wss://x", admission, identity, {
+      webSocketFactory: factory, keepalive: false, onRecovery: save,
+    });
+    const fresh = recoveryTicket(identity.publicKey, "44".repeat(16));
+    serve(identity, admission, socket => {
+      socket.handler = frame => {
+        const ack = {v: PROTOCOL, kind: "ack", id: frame.id, ...(frame.kind === "keepalive" ? {recovery: fresh} : {})};
+        socket.deliver(ack);
+        socket.deliver(ack); // Duplicate acks must not persist a ticket twice.
+      };
+    });
+    const session = await connecting;
+    try {
+      await session.subscribe("lobby");
+      let complete = false;
+      const renewal = session.keepalive().then(() => { complete = true; });
+      await Promise.resolve();
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(complete).toBe(false);
+      finish();
+      await renewal;
+      expect(complete).toBe(true);
+      await expect(session.keepalive()).rejects.toMatchObject({code: "recovery_persistence_failed"});
+      expect(FakeSocket.current!.closed).toBe(false);
+      await expect(session.send("lobby", {kind: "still-online"})).resolves.toBeUndefined();
+    } finally { session.close(); }
+  });
+
+  it("bounds a stalled recovery persistence callback by the request timeout", async () => {
+    const identity = await generateKeyPair();
+    const admission = makeAdmission(identity.publicKey);
+    const connecting = RelaySession.connect("wss://x", admission, identity, {
+      webSocketFactory: factory, keepalive: false, onRecovery: () => new Promise<void>(() => {}),
+    });
+    const fresh = recoveryTicket(identity.publicKey, "55".repeat(16));
+    serve(identity, admission, socket => {
+      socket.handler = frame => socket.deliver({v: PROTOCOL, kind: "ack", id: frame.id, recovery: fresh});
+    });
+    const session = await connecting;
+    vi.useFakeTimers();
+    try {
+      const pending = expect(session.keepalive()).rejects.toThrow("relay request timeout");
+      await vi.advanceTimersByTimeAsync(15000);
+      await pending;
+      expect(FakeSocket.current!.closed).toBe(false);
+    } finally { session.close(); vi.useRealTimers(); }
+  });
+
   it("emits close and rejects pending requests when the transport drops", async () => {
     const identity = await generateKeyPair();
     const admission = makeAdmission(identity.publicKey);

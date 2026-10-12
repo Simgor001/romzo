@@ -81,6 +81,7 @@ export class RelaySessionError extends Error {
 }
 
 interface Pending {
+  acknowledged?: boolean;
   resolve: (value?: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -348,12 +349,25 @@ export class RelaySession {
     if (frame.v !== PROTOCOL) throw new Error("protocol_mismatch");
     if (frame.kind === "ack" || (frame.kind === "error" && frame.id)) {
       const p = this.pending.get(frame.id as string);
-      if (!p) return;
-      this.pending.delete(frame.id as string);
-      clearTimeout(p.timer);
-      if (frame.kind === "error") p.reject(new RelaySessionError(frame.error ?? "unknown_error"));
-      else p.resolve(frame);
-      if (frame.recovery) void this.acceptRecovery(frame.recovery);
+      if (!p || p.acknowledged) return;
+      p.acknowledged = true;
+      const settle = (error?: Error) => {
+        if (this.pending.get(frame.id as string) !== p) return;
+        this.pending.delete(frame.id as string);
+        clearTimeout(p.timer);
+        if (error) p.reject(error);
+        else p.resolve(frame);
+      };
+      if (frame.kind === "error") settle(new RelaySessionError(frame.error ?? "unknown_error"));
+      else if (frame.recovery) {
+        // Renewal is not complete for the caller until persistence finishes.
+        // A rejecting callback must reject the request, not become an unhandled
+        // promise rejection from the WebSocket event handler.
+        void this.acceptRecovery(frame.recovery).then(
+          () => settle(),
+          () => settle(new RelaySessionError("recovery_persistence_failed")),
+        );
+      } else settle();
       return;
     }
     if (frame.kind === "error") {

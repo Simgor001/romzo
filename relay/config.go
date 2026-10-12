@@ -23,6 +23,7 @@ type Config struct {
 	Salt, TicketKey, Verifier                    []byte
 	TurnstileSecret, TurnstileURL                string
 	ClientOrigins                                []string
+	AdminOrigins                                 []string
 	TrustedProxies                               []*net.IPNet
 	Rooms, Connections, Unauthenticated, PerRoom int
 	FramesPerSecond, BytesPerSecond              int
@@ -112,6 +113,15 @@ func config() (Config, error) {
 		}
 	}
 	c.ClientOrigins = strings.Split(env("CLIENT_ORIGINS", c.Origin), ",")
+	if len(c.ClientOrigins) != 1 || c.ClientOrigins[0] != "*" {
+		if err := validateOrigins(c.ClientOrigins); err != nil {
+			return c, errors.New("CLIENT_ORIGINS must be * or a comma-separated list of exact HTTP(S) origins")
+		}
+	}
+	c.AdminOrigins = strings.Split(env("ADMIN_ORIGINS", c.Origin), ",")
+	if err := validateOrigins(c.AdminOrigins); err != nil {
+		return c, errors.New("ADMIN_ORIGINS must contain exact HTTP(S) origins; wildcard is not allowed")
+	}
 	for _, cidr := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
 		if cidr == "" {
 			continue
@@ -121,12 +131,6 @@ func config() (Config, error) {
 			return c, errors.New("invalid TRUSTED_PROXIES")
 		}
 		c.TrustedProxies = append(c.TrustedProxies, network)
-	}
-	for _, origin := range c.ClientOrigins {
-		p, err := url.Parse(origin)
-		if err != nil || p.Host == "" || p.Scheme == "" || p.User != nil || p.RawQuery != "" || p.Fragment != "" || p.Path != "" {
-			return c, errors.New("CLIENT_ORIGINS must contain exact origins")
-		}
 	}
 	for _, item := range []struct {
 		name            string
@@ -161,6 +165,34 @@ func config() (Config, error) {
 	}
 	return c, nil
 }
+func validWebOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Path != "" {
+		return false
+	}
+	if origin != u.Scheme+"://"+u.Host || strings.HasSuffix(u.Host, ":") || strings.Contains(u.Host, "*") {
+		return false
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return false
+		}
+	}
+	return true
+}
+
+func validateOrigins(origins []string) error {
+	for i, origin := range origins {
+		origin = strings.TrimSpace(origin)
+		if !validWebOrigin(origin) {
+			return errors.New("invalid web origin")
+		}
+		origins[i] = origin
+	}
+	return nil
+}
+
 func secretEnv(name string) (string, error) {
 	value, path := os.Getenv(name), os.Getenv(name+"_FILE")
 	if path == "" {

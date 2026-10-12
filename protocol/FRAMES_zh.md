@@ -33,7 +33,7 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 
 - 端点：`GET /ws`，WebSocket 文本帧，**不支持二进制帧**。
 - 每个帧都是单个 JSON 对象，带 `"v": "romzo/v1"` 版本字段。
-- Origin 必须在中继器允许列表内（浏览器场景）；每 IP 有独立令牌桶限流。
+- 私有部署的 Origin 必须精确匹配 `CLIENT_ORIGINS`；`CLIENT_ORIGINS=*` 允许任意 HTTP(S) 网页来源及省略 Origin 的非浏览器客户端，仍拒绝浏览器 `null` 来源。管理 HTTP 接口独立使用 `ADMIN_ORIGINS` 精确白名单及 Bearer 认证；每 IP 有独立令牌桶限流。
 - 认证必须在连接后 **5 秒**内完成，超时直接断开（无错误帧）。
 - 认证后每 **45 秒**内必须收到任意合法帧，否则断开（发送 `keepalive` 即可保活）。
 - 单帧上限 288 KiB；慢写 5 秒断开。

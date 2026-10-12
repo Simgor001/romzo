@@ -149,8 +149,25 @@ func (s *Server) allowCostLocked(key string, rate, burst, cost float64) bool {
 	return allowed
 }
 func (s *Server) originAllowed(origin string) bool {
+	if len(s.cfg.ClientOrigins) == 1 && s.cfg.ClientOrigins[0] == "*" {
+		// Missing Origin is valid for non-browser clients; opaque/null origins
+		// are not valid web origins and do not receive browser access.
+		return origin == "" || validWebOrigin(origin)
+	}
 	for _, v := range s.cfg.ClientOrigins {
 		if v == origin {
+			return true
+		}
+	}
+	return false
+}
+func (s *Server) adminOriginAllowed(origin string) bool {
+	origins := s.cfg.AdminOrigins
+	if len(origins) == 0 {
+		origins = []string{s.cfg.Origin}
+	}
+	for _, allowed := range origins {
+		if origin == allowed {
 			return true
 		}
 	}
@@ -186,7 +203,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if origin := r.Header.Get("Origin"); origin != "" {
-		if !s.originAllowed(origin) {
+		allowed := s.originAllowed(origin)
+		if r.URL.Path == api+"metrics" || strings.HasPrefix(r.URL.Path, api+"admin/") {
+			allowed = s.adminOriginAllowed(origin)
+		}
+		if !allowed {
 			failure(w, 403, "origin_denied")
 			return
 		}

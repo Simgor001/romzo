@@ -101,7 +101,7 @@ const session = await RelaySession.connect(wsUrl, restored.admission, restored.t
 
 ## 分层 API
 
-非浏览器应用也须发送匹配服务端 `CLIENT_ORIGINS` 的 WebSocket Origin。
+私有中继要求 WebSocket Origin 匹配 `CLIENT_ORIGINS`；公共中继配置 `CLIENT_ORIGINS=*` 时也允许非浏览器应用省略 Origin。
 可注入 `webSocketFactory` 设置请求头（本仓库集成测试通过应用侧 `ws` 工厂实现，属测试开发依赖）。
 SDK 不持久化密钥或历史状态。
 
@@ -146,6 +146,8 @@ passwordKeyProvider.clear(origin); // 或 clear() 清除全部派生密钥
 派生失败自动删除，建房认证失败清除对应 origin。
 不持久化口令或派生密钥。
 持有缓存实例即持有口令闭包；用毕请清除并释放实例，JavaScript 不保证内存擦除。
+
+恢复票据回执会等待 `onRecovery` 持久化回调完成；回调失败时请求以 `recovery_persistence_failed` 拒绝，连接仍可使用，不产生未处理的 Promise rejection。
 
 ## 会话与私钥责任
 
