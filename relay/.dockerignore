@@ -20,3 +20,6 @@
 !monitor.go
 
 !moderation.go
+
+!authz.go
+!members.go
