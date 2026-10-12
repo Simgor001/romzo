@@ -70,7 +70,7 @@ nav {
   height: 68px;
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 12px;
 }
 
 .wordmark {
@@ -91,8 +91,10 @@ nav {
   flex: none;
 }
 
-.nav-links { display: flex; gap: 28px; font-family: var(--sans); font-size: 16px; }
+.nav-links { display: flex; align-items: center; gap: 12px; }
 .nav-links a { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; color: var(--muted); border: 1px solid transparent; border-radius: 6px; }
+.nav-links svg, .lang > button svg { display: block; width: 20px; height: 20px; flex: none; }
+.nav-links a[aria-label="npm"] svg { width: 18px; height: 18px; }
 .nav-links a:hover { color: var(--ink); text-decoration: none; }
 .nav-links a:hover { border-color: var(--line); }
 
@@ -100,15 +102,18 @@ nav {
 
 /* language dropdown */
 
-.lang { position: relative; }
+.lang { position: relative; flex: none; }
 .lang > button {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   background: none;
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--muted);
-  padding: 6px;
+  padding: 0;
   cursor: pointer;
 }
 .lang > button:hover { color: var(--ink); border-color: var(--line); }
@@ -619,7 +624,6 @@ html[data-lang="zh"] .l-en { display: none !important; }
 /* Technical navigation and reading details. */
 
 .node { box-shadow: 0 4px 16px rgba(34, 37, 34, .04); }
-.lang > button { min-width: 40px; min-height: 40px; justify-content: center; }
 .code-head { min-height: 44px; }
 pre { scrollbar-width: thin; scrollbar-color: #626e63 #202620; }
 pre:focus-visible { outline: 2px solid #fb923c; outline-offset: -3px; }
@@ -636,7 +640,7 @@ table.api th:first-child, table.api td:first-child { width: 22%; }
   :root { --header-height: 64px; }
   .wrap, .nav-inner { padding-left: 20px; padding-right: 20px; }
   .nav-inner { gap: 8px; height: 64px; padding-left: 16px; padding-right: 16px; }
-  .nav-links { gap: 12px; font-size: 16px; }
+  .nav-links { gap: 8px; }
   .wordmark { font-size: 18px; }
   .hero-grid { gap: 32px; padding-top: 40px; padding-bottom: 36px; }
   .hero h1 { font-size: 3rem; }
@@ -656,12 +660,8 @@ table.api th:first-child, table.api td:first-child { width: 22%; }
   p code, li code, td code { overflow-wrap: anywhere; }
 }
 @media (max-width: 360px) {
-  .nav-links { gap: 10px; font-size: 14px; }
   .wordmark { font-size: 16px; gap: 6px; }
   .wordmark img { width: 24px; height: 24px; }
-}
-@media (max-width: 640px) {
-  .lang > button { min-width: 32px; min-height: 40px; padding: 4px; }
 }
 
 /* Public test service terms. */
