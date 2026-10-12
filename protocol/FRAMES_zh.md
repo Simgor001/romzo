@@ -4,7 +4,7 @@ English: [FRAMES.md](FRAMES.md)
 
 本文档是 `relay` WebSocket 面的规范，与 HTTP 面的 OpenAPI 文档（`openapi.yaml`）互补。第三方客户端实现应以本文档 + 共享测试向量（`protocol/relay-v1-vectors.json`）为准，不需要阅读服务端源码。
 
-服务端发行版本为 **1.3.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。频道由应用通过 `options.channels` 显式声明；中继没有预置的频道名称。
+服务端发行版本为 **1.3.1**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。频道由应用通过 `options.channels` 显式声明；中继没有预置的频道名称。
 
 ## 邀请链接与房间配置
 

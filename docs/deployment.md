@@ -25,7 +25,7 @@ them empty does not generate keys at startup.
 
 The server serves HTTP/WS behind a TLS reverse proxy; PUBLIC_ORIGIN must be a canonical HTTPS origin, except for explicit loopback development.
 Do not expose the unencrypted listener publicly.
-`relay -version` reports 1.3.0.
+`relay -version` reports 1.3.1.
 
 ## Configuration
 

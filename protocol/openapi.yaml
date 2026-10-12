@@ -381,7 +381,7 @@ components:
 info:
     description: Room allocation and encrypted fan-out relay for the romzo/v1 protocol. The server forwards client-signed envelopes verbatim; it holds no game rules, keys, or state beyond room lifecycles. All requests reject query strings; browser origins are checked against the server allowlist; every route is per-IP rate limited.
     title: Romzo Relay
-    version: 1.3.0
+    version: 1.3.1
 openapi: 3.0.3
 paths:
     /api/v1/admin/rooms/stop:

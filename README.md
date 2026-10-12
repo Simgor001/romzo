@@ -6,13 +6,13 @@ A room-based opaque WebSocket relay with a zero-runtime-dependency TypeScript SD
 The relay handles room registration, signed tickets, channel membership and bounded forwarding.
 Applications own encryption, rules, persistence, reconnection and history synchronization.
 
-Server release: **1.3.0**.
+Server release: **1.3.1**.
 SDK: **romzo 0.3.0**.
 Wire protocol: **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
 
-Source updates pending release: public relays support `CLIENT_ORIGINS=*`, with management access isolated by `ADMIN_ORIGINS`. SDK renewal awaits recovery persistence and reports callback failures as bounded request errors. Published 1.3.0 server images and npm 0.3.0 do not include these source changes yet.
+Released in 1.3.1: public relays support `CLIENT_ORIGINS=*`, with management access isolated by `ADMIN_ORIGINS`. Pending SDK release: renewal recovery persistence and bounded request-error reporting (npm 0.3.0 predates these client changes).
 
 | Component | Path | Description |
 | --- | --- | --- |

@@ -18,7 +18,7 @@ import (
 )
 
 const protocol = "romzo/v1"
-const version = "1.3.0"
+const version = "1.3.1"
 const api = "/api/v1/"
 const wsPath = "/ws"
 const controlLimit = 16 * 1024

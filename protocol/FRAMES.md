@@ -5,7 +5,7 @@
 This document is the specification of the `relay` WebSocket surface; it complements the OpenAPI document (`openapi.yaml`) for the HTTP surface.
 Third-party client implementations can follow this document and the shared test vectors (`protocol/relay-v1-vectors.json`) alone.
 
-Server release is **1.3.0**; the public wire protocol is **romzo/v1**.
+Server release is **1.3.1**; the public wire protocol is **romzo/v1**.
 HTTP routes use `/api/v1/`, WebSocket uses `/ws`, and cryptographic domains use the `romzo/` prefix.
 Clients and servers must use the same protocol.
 Channels are declared by applications in `options.channels`; the relay has no predefined channel names.
