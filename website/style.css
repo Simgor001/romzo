@@ -191,6 +191,9 @@ nav {
 .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
 
 .btn {
+  border: 1px solid transparent;
+  font-family: inherit;
+  cursor: pointer;
   display: inline-block;
   padding: 11px 20px;
   border-radius: 8px;
@@ -208,6 +211,50 @@ nav {
   background: var(--bg1);
 }
 .btn.ghost:hover { border-color: var(--faint); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* Playground composes the shared page head, node and code panels. */
+.play-layout { display: grid; grid-template-columns: minmax(340px, .85fr) minmax(0, 1.35fr); gap: 24px; align-items: start; padding-top: 40px; padding-bottom: 56px; }
+.play-node { width: 360px; max-width: 100%; }
+.play-page .page-head .wrap > * { min-width: 0; }
+.play-doc-link { display: inline-block; margin-top: 8px; font-size: 14px; }
+.play-room h2, .play-chat h2 { font: inherit; font-weight: 600; margin: 0; color: var(--ink); }
+.play-step { font: 12px var(--mono); color: var(--accent); margin-right: 8px; }
+.play-chat .play-step { color: var(--faint); }
+.play-body { padding: 20px; }
+.play-hint { font-size: 14px; line-height: 1.7; color: var(--muted); margin: 0 0 16px; }
+#ts-widget { min-height: 65px; margin-bottom: 20px; }
+#ts-widget[data-size="compact"] { min-height: 140px; }
+#create-result { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 20px; }
+.play-room-code { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 12px; font-size: 14px; color: var(--muted); }
+.play-room-code strong { font: 600 16px var(--mono); color: var(--ink); }
+.invite-box { overflow-wrap: anywhere; font: 13px/1.7 var(--mono); color: var(--ink); background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin: 0 0 16px; }
+.play-log { height: 280px; overflow: auto; padding: 20px; font: 14px/1.7 var(--mono); scrollbar-width: thin; }
+.play-log p { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.play-log .sys { color: var(--faint); }
+.play-log .me { color: var(--ok); }
+.play-empty { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--faint); text-align: center; font: 14px/1.7 var(--sans); padding: 16px; }
+.play-compose { display: flex; gap: 10px; padding: 16px 20px; border-top: 1px solid var(--line); }
+.play-input { flex: 1; min-width: 0; width: 100%; background: var(--bg1); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 16px var(--sans); }
+.play-input:focus-visible { outline: 2px solid var(--faint); outline-offset: 2px; }
+.play-input:disabled { opacity: .5; }
+.play-compose .btn { flex: none; }
+.play-status { padding: 0 20px 16px; color: var(--faint); font-size: 13px; }
+.play-status p { margin: 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 800px) {
+  .play-layout { grid-template-columns: minmax(0, 1fr); padding-top: 28px; padding-bottom: 40px; }
+}
+@media (max-width: 960px) {
+  .play-page .page-head .wrap { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .play-body { padding: 16px; }
+  .play-log { height: 240px; padding: 16px; }
+  .play-compose { padding: 16px; }
+  .play-compose .btn { padding-left: 14px; padding-right: 14px; }
+  .play-status { padding-left: 16px; padding-right: 16px; }
+}
 
 /* ---------- background relay mesh ---------- */
 

@@ -10,23 +10,10 @@
 <script type="importmap">
 { "imports": { "romzo": "https://cdn.jsdelivr.net/npm/romzo@0.3.0/+esm" } }
 </script>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<style>
-.play-grid { display: grid; gap: 20px; grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; }
-@media (min-width: 760px) { .play-grid { grid-template-columns: 1fr 1fr; } }
-.play-card { background: var(--panel, #f7f7f8); border: 1px solid var(--line, #e4e4e7); border-radius: 12px; padding: 20px; }
-.play-card h2 { margin: 0 0 12px; font-size: 18px; }
-.play-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
-.play-log { min-height: 140px; max-height: 220px; overflow: auto; background: #fff; border: 1px solid var(--line, #e4e4e7); border-radius: 8px; padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-.play-log p { margin: 2px 0; }
-.play-log .sys { color: #71717a; }
-.play-log .me { color: #2563eb; }
-.invite-box { word-break: break-all; font-size: 13px; background: #fff; border: 1px dashed var(--line, #d4d4d8); border-radius: 8px; padding: 8px 10px; }
-#ts-widget { min-height: 65px; }
-input.play-input { flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid var(--line, #d4d4d8); border-radius: 8px; font-size: 14px; }
-</style>
+
+
 </head>
-<body>
+<body class="play-page">
 
 <nav>
   <div class="nav-inner">
@@ -52,49 +39,58 @@ input.play-input { flex: 1; min-width: 180px; padding: 8px 10px; border: 1px sol
   </div>
 </nav>
 
-<main class="wrap home-content">
-
-<section class="section">
+<header class="page-head">
   <div class="wrap">
-    <h2 class="l-en">Playground</h2>
-    <h2 class="l-zh">在线体验</h2>
-    <p class="l-en">Create a real room on the public relay, share the invite link with a friend (or another browser), and exchange messages. Room creation is guarded by Turnstile.</p>
-    <p class="l-zh">在公共中继上创建一个真实房间，把邀请链接发给朋友（或另一个浏览器）互发消息。建房需通过 Turnstile 人机验证。</p>
+    <div>
+      <h1 class="l-en">Playground</h1>
+      <h1 class="l-zh">在线体验</h1>
+      <p class="l-en">Create a room, share an invite, and exchange messages over the public relay.</p>
+      <p class="l-zh">创建房间，分享邀请，在公共中继上互发消息。</p>
+      <a href="sdk.html" class="play-doc-link"><span class="l-en">SDK documentation →</span><span class="l-zh">查看 SDK 文档 →</span></a>
+    </div>
+    <div id="node-panel" class="play-node"></div>
   </div>
-  <div class="wrap play-grid" style="margin-top: 20px;">
+</header>
 
-    <div class="play-card">
-      <h2 class="l-en">1. Create a room</h2>
-      <h2 class="l-zh">1. 创建房间</h2>
-      <div id="ts-widget" class="cf-turnstile" data-sitekey="0x4AAAAAAFUPxg9x3hbPICdn" data-action="create-room"></div>
-      <div class="play-row">
-        <button class="btn primary" id="create" type="button"><span class="l-en">Create room</span><span class="l-zh">创建房间</span></button>
-      </div>
+<main class="wrap play-layout">
+  <section class="node play-room" aria-labelledby="room-title">
+    <div class="node-head">
+      <span class="play-step">01</span>
+      <h2 id="room-title"><span class="l-en">Create a room</span><span class="l-zh">创建房间</span></h2>
+    </div>
+    <div class="play-body">
+      <p class="play-hint l-en">Complete the check, then invite someone to join. Guests do not need to verify.</p>
+      <p class="play-hint l-zh">完成验证后创建房间，再邀请朋友加入。访客无需验证。</p>
+      <div id="ts-widget" class="cf-turnstile" data-sitekey="0x4AAAAAAFUPxg9x3hbPICdn" data-action="create-room" data-theme="light" data-size="compact"></div>
+      <button class="btn primary" id="create" type="button"><span class="l-en">Create room</span><span class="l-zh">创建房间</span></button>
       <div id="create-result" hidden>
-        <p class="l-en">Room code: <strong id="room-code"></strong></p>
-        <p class="l-zh">房间代码：<strong id="room-code-zh"></strong></p>
-        <p class="l-en">Invite link — open it in another browser to join:</p>
-        <p class="l-zh">邀请链接——在另一个浏览器打开即可加入：</p>
+        <div class="play-room-code"><span class="l-en">Room code</span><span class="l-zh">房间代码</span><strong class="l-en" id="room-code"></strong><strong class="l-zh" id="room-code-zh"></strong></div>
+        <p class="play-hint l-en">Open this invite in another browser, or share it with a friend.</p>
+        <p class="play-hint l-zh">在另一个浏览器打开邀请，或把链接发给朋友。</p>
         <p class="invite-box" id="invite-link"></p>
-        <div class="play-row"><button class="btn ghost" id="copy-invite" type="button"><span class="l-en">Copy link</span><span class="l-zh">复制链接</span></button></div>
+        <button class="btn ghost" id="copy-invite" type="button"><span class="l-en">Copy invite</span><span class="l-zh">复制邀请</span></button>
       </div>
     </div>
+  </section>
 
-    <div class="play-card">
-      <h2 class="l-en">2. Exchange messages</h2>
-      <h2 class="l-zh">2. 互发消息</h2>
-      <div class="play-log" id="log"><p class="sys">—</p></div>
-      <div class="play-row">
-        <input class="play-input" id="message" type="text" maxlength="512" autocomplete="off" placeholder="message / 消息">
-        <button class="btn primary" id="send" type="button"><span class="l-en">Send</span><span class="l-zh">发送</span></button>
-      </div>
-      <p class="l-en" id="role-status" style="color:#71717a;font-size:13px;">Create or join a room to start.</p>
-      <p class="l-zh" id="role-status-zh" style="color:#71717a;font-size:13px;">创建或加入房间后开始。</p>
+  <section class="code-panel play-chat" aria-labelledby="chat-title">
+    <div class="code-head">
+      <span class="play-step">02</span>
+      <h2 id="chat-title"><span class="l-en">Exchange messages</span><span class="l-zh">互发消息</span></h2>
+      <span class="grow"></span><span class="code-tag">LIVE</span>
     </div>
-
-  </div>
-</section>
-
+    <div class="play-log" id="log" role="log" aria-live="polite" aria-labelledby="chat-title"><div class="play-empty"><span class="l-en">Messages will appear here after you create or join a room.</span><span class="l-zh">创建或加入房间后，消息会显示在这里。</span></div></div>
+    <div class="play-compose">
+      <label class="visually-hidden l-en" for="message">Message</label>
+      <label class="visually-hidden l-zh" for="message">消息</label>
+      <input class="play-input" id="message" type="text" maxlength="512" autocomplete="off" placeholder="…" disabled>
+      <button class="btn primary" id="send" type="button" disabled><span class="l-en">Send</span><span class="l-zh">发送</span></button>
+    </div>
+    <div class="play-status" role="status">
+      <p class="l-en" id="role-status">Create or join a room to start.</p>
+      <p class="l-zh" id="role-status-zh">创建或加入房间后开始。</p>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -113,11 +109,13 @@ input.play-input { flex: 1; min-width: 180px; padding: 8px 10px; border: 1px sol
 </footer>
 
 <script src="site.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script type="module">
 import { createRoom, joinRoom, RelaySession, buildInviteLink, parseInviteHash } from 'romzo';
 
 const ORIGIN = 'https://romzo.net';
 const CHANNEL = 'lobby';
+const inviteOptions = { allowLoopbackHttp: location.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) };
 const logEl = document.getElementById('log');
 const statusEls = [document.getElementById('role-status'), document.getElementById('role-status-zh')];
 let session = null;
@@ -127,7 +125,7 @@ function log(text, cls) {
   const p = document.createElement('p');
   if (cls) p.className = cls;
   p.textContent = text;
-  if (logEl.firstChild && logEl.firstChild.textContent === '—') logEl.textContent = '';
+  logEl.querySelector('.play-empty')?.remove();
   logEl.append(p);
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -140,11 +138,18 @@ const roomOptions = { app: 'romzo-playground', channels: [{ name: CHANNEL, maxFr
 
 async function openSession(admission, transport, label) {
   session = await RelaySession.connect(wsUrl, admission, transport, { webSocketFactory: socketFactory });
-  await session.subscribe(CHANNEL);
   session.on('receive', (value, { peer }) => log(`[${label}] ${JSON.stringify(value)} <${peer.slice(0, 8)}…>`));
   session.on('join', (_p, meta) => log(`peer joined: ${meta.key ? meta.key.slice(0, 8) + '…' : '?'}`, 'sys'));
   session.on('leave', (_p, meta) => log(`peer left: ${meta.key ? meta.key.slice(0, 8) + '…' : '?'}`, 'sys'));
-  session.on('close', () => log('session closed', 'sys'));
+  session.on('close', () => {
+    document.getElementById('message').disabled = true;
+    document.getElementById('send').disabled = true;
+    setStatus('Disconnected. Reload to join again.', '连接已断开，刷新页面重新加入。');
+    log('session closed', 'sys');
+  });
+  await session.subscribe(CHANNEL);
+  document.getElementById('message').disabled = false;
+  document.getElementById('send').disabled = false;
 }
 
 // Host flow
@@ -157,7 +162,7 @@ document.getElementById('create').addEventListener('click', async () => {
     const room = await createRoom(ORIGIN, roomOptions, { turnstileToken: token });
     if (window.turnstile && widgetId !== null) window.turnstile.reset(widgetId);
     else if (window.turnstile) window.turnstile.reset();
-    const invite = buildInviteLink(ORIGIN, room.descriptor.code, location.origin + '/');
+    const invite = buildInviteLink(ORIGIN, room.descriptor.code, new URL('play.html', location.href).href.split('#')[0], inviteOptions);
     document.getElementById('room-code').textContent = room.descriptor.code;
     document.getElementById('room-code-zh').textContent = room.descriptor.code;
     document.getElementById('invite-link').textContent = invite;
@@ -170,7 +175,7 @@ document.getElementById('create').addEventListener('click', async () => {
     log('create failed: ' + (e && e.message ? e.message : e), 'sys');
     if (window.turnstile) window.turnstile.reset(widgetId ?? undefined);
   } finally {
-    btn.disabled = false;
+    btn.disabled = !!session;
   }
 });
 
@@ -201,7 +206,7 @@ document.getElementById('message').addEventListener('keydown', (e) => {
 window.addEventListener('DOMContentLoaded', async () => {
   if (!location.hash || location.hash.length < 2) return;
   let parsed = null;
-  try { parsed = parseInviteHash(location.hash); } catch { /* invalid hash */ }
+  try { parsed = parseInviteHash(location.hash, inviteOptions); } catch { /* invalid hash */ }
   if (!parsed) return;
   if (parsed.origin !== ORIGIN) { log('invite points to another relay: ' + parsed.origin, 'sys'); return; }
   document.getElementById('create').disabled = true;
