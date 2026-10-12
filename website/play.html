@@ -56,18 +56,33 @@
   <section class="node play-room" aria-labelledby="room-title">
     <div class="node-head">
       <span class="play-step">01</span>
-      <h2 id="room-title"><span class="l-en">Create a room</span><span class="l-zh">创建房间</span></h2>
+      <h2 id="room-title"><span class="l-en">Room</span><span class="l-zh">房间</span></h2>
     </div>
     <div class="play-body">
+      <div class="play-room-modes" id="room-modes" role="group" aria-label="Create or join / 创建或加入">
+        <button type="button" id="mode-create" aria-pressed="true"><span class="l-en">Create</span><span class="l-zh">创建</span></button>
+        <button type="button" id="mode-join" aria-pressed="false"><span class="l-en">Join</span><span class="l-zh">加入</span></button>
+      </div>
+      <div id="create-panel">
       <p class="play-hint l-en">Click create, complete the check, then invite someone to join. Guests do not need to verify.</p>
       <p class="play-hint l-zh">点击创建房间后完成验证，再邀请朋友加入。访客无需验证。</p>
       <div id="ts-widget" hidden data-sitekey="0x4AAAAAAFUPxg9x3hbPICdn" data-action="create-room" data-theme="light" data-size="compact"></div>
       <button class="btn primary" id="create" type="button"><span class="l-en">Create room</span><span class="l-zh">创建房间</span></button>
+      </div>
+      <form id="join-panel" hidden>
+        <label class="l-en play-label" for="join-code">Room code or invite</label>
+        <label class="l-zh play-label" for="join-code">房间号或邀请</label>
+        <input class="play-input" id="join-code" type="text" maxlength="2048" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="THYB5YDPZQ" aria-describedby="join-hint" required>
+        <p id="join-hint" class="play-hint"><span class="l-en">Enter the 10-character code, or paste a short invite or full link. No verification needed.</span><span class="l-zh">输入 10 位房间号，也可粘贴短邀请或完整链接。加入无需验证。</span></p>
+        <button class="btn primary" id="join" type="submit"><span class="l-en">Join room</span><span class="l-zh">加入房间</span></button>
+        <p id="join-error" class="play-form-error" role="alert" hidden></p>
+      </form>
       <div id="create-result" hidden>
         <div class="play-room-code"><span class="l-en">Room code</span><span class="l-zh">房间代码</span><strong class="l-en" id="room-code"></strong><strong class="l-zh" id="room-code-zh"></strong></div>
         <p class="play-hint l-en">Open this invite in another browser, or share it with a friend.</p>
         <p class="play-hint l-zh">在另一个浏览器打开邀请，或把链接发给朋友。</p>
         <p class="invite-box" id="invite-link"></p>
+        <button class="btn ghost" id="copy-code" type="button"><span class="l-en">Copy code</span><span class="l-zh">复制房间号</span></button>
         <button class="btn ghost" id="copy-invite" type="button"><span class="l-en">Copy invite</span><span class="l-zh">复制邀请</span></button>
       </div>
     </div>
@@ -241,14 +256,12 @@ document.getElementById('create').addEventListener('click', async () => {
   btn.disabled = true;
   setStatus('Complete the check to create your room.', '请完成验证，随后自动创建房间。');
   try {
+    setRoomBusy(true);
     const token = await verificationToken();
     const room = await createRoom(ORIGIN, roomOptions, { turnstileToken: token });
     const invite = buildInviteLink(ORIGIN, room.descriptor.code, new URL('play.html', location.href).href.split('#')[0], inviteOptions);
-    document.getElementById('room-code').textContent = room.descriptor.code;
-    document.getElementById('room-code-zh').textContent = room.descriptor.code;
-    document.getElementById('invite-link').textContent = invite;
-    document.getElementById('create-result').hidden = false;
     await openSession(room.admission, room.transport);
+    showRoom(room.descriptor.code, invite);
     systemMessage('Room created · Share your invite to start', '房间已创建 · 分享邀请即可开始');
     updatePresence();
   } catch (e) {
@@ -260,7 +273,7 @@ document.getElementById('create').addEventListener('click', async () => {
       widgetId = null;
     }
     document.getElementById('ts-widget').hidden = true;
-    btn.disabled = !!session;
+    setRoomBusy(false);
   }
 });
 
@@ -293,25 +306,72 @@ document.getElementById('message').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.isComposing) document.getElementById('send').click();
 });
 
-// Guest flow: open an invite link, e.g. https://romzo.net/play.html#ABCD123XYZ@romzo.net
-window.addEventListener('DOMContentLoaded', async () => {
-  if (!location.hash || location.hash.length < 2) return;
-  let parsed = null;
-  try { parsed = parseInviteHash(location.hash, inviteOptions); } catch { /* invalid hash */ }
-  if (!parsed) return;
-  if (parsed.origin !== ORIGIN) { systemMessage('This invite uses another relay.', '此邀请使用其他中继。'); return; }
-  document.getElementById('create').disabled = true;
-  setStatus('Joining room ' + parsed.code + '…', '正在加入房间 ' + parsed.code + '…');
+// Both manual codes and URL invitations use the same admission flow.
+let roomBusy = false;
+function setRoomBusy(busy) {
+  roomBusy = busy;
+  for (const id of ['create', 'join', 'mode-create', 'mode-join', 'join-code']) document.getElementById(id).disabled = busy || !!session;
+}
+function roomMode(mode) {
+  if (roomBusy || session) return;
+  document.getElementById('create-panel').hidden = mode !== 'create';
+  document.getElementById('join-panel').hidden = mode !== 'join';
+  document.getElementById('mode-create').setAttribute('aria-pressed', String(mode === 'create'));
+  document.getElementById('mode-join').setAttribute('aria-pressed', String(mode === 'join'));
+  document.getElementById('join-error').hidden = true;
+}
+for (const mode of ['create', 'join']) document.getElementById('mode-' + mode).addEventListener('click', () => roomMode(mode));
+function parseRoomInput(input) {
+  let value = input.trim();
+  if (/^https?:\/\//i.test(value)) {
+    const url = new URL(value);
+    if (url.username || url.password) throw Error('invalid-room');
+    value = url.hash;
+  }
+  const bare = value.replace(/^#/, '').replace(/[\s-]/g, '').toUpperCase();
+  if (/^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{10}$/.test(bare)) return bare;
+  value = value.replace(/^#?([^@]+)@/, (_, code) => '#' + code.replace(/[\s-]/g, '').toUpperCase() + '@');
+  const parsed = parseInviteHash(value, inviteOptions);
+  if (!parsed) throw Error('invalid-room');
+  if (parsed.origin !== ORIGIN) throw Error('other-relay');
+  return parsed.code;
+}
+function showRoom(code, invite = buildInviteLink(ORIGIN, code, new URL('play.html', location.href).href.split('#')[0], inviteOptions)) {
+  document.getElementById('room-code').textContent = code;
+  document.getElementById('room-code-zh').textContent = code;
+  document.getElementById('invite-link').textContent = invite;
+  for (const id of ['create-panel', 'join-panel', 'room-modes']) document.getElementById(id).hidden = true;
+  document.getElementById('create-result').hidden = false;
+}
+async function joinInput(value) {
+  if (roomBusy || session) return;
+  const error = document.getElementById('join-error'); error.hidden = true;
   try {
-    const guest = await joinRoom(ORIGIN, parsed.code);
+    const code = parseRoomInput(value);
+    setRoomBusy(true);
+    setStatus('Joining room…', '正在加入房间…');
+    const guest = await joinRoom(ORIGIN, code);
     await openSession(guest.admission, guest.transport);
+    showRoom(code);
     systemMessage('Joined the room', '已加入房间');
     updatePresence();
   } catch (e) {
-    systemMessage('Could not join the room.', '加入房间失败。');
-    setStatus('Join failed.', '加入失败。');
-  }
+    const en = e.message === 'other-relay' ? 'This playground only joins rooms on the current relay.' : e.message === 'invalid-room' ? 'Enter a valid 10-character room code or invite.' : 'Could not join. Check the room code and try again.';
+    const zh = e.message === 'other-relay' ? '此体验页仅支持当前中继上的房间。' : e.message === 'invalid-room' ? '请输入有效的 10 位房间号或邀请。' : '加入失败，请检查房间号后重试。';
+    error.replaceChildren(bilingual(en, zh)); error.hidden = false;
+    setStatus('Not connected · Try another code', '未连接 · 请检查房间号');
+  } finally { setRoomBusy(false); }
+}
+document.getElementById('join-panel').addEventListener('submit', event => { event.preventDefault(); void joinInput(document.getElementById('join-code').value); });
+document.getElementById('copy-code').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(document.getElementById('room-code').textContent); systemMessage('Room code copied', '房间号已复制'); }
+  catch { systemMessage('Copy failed. Select the code to copy it manually.', '复制失败，请手动选中房间号复制。'); }
 });
+if (location.hash) {
+  roomMode('join');
+  document.getElementById('join-code').value = location.hash;
+  void joinInput(location.hash);
+}
 </script>
 </body>
 </html>
