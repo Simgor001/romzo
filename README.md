@@ -7,7 +7,7 @@ The relay handles room registration, signed tickets, channel membership and boun
 Applications own encryption, rules, persistence, reconnection and history synchronization.
 
 Server release: **1.3.0**.
-SDK: **romzo 0.2.0**.
+SDK: **romzo 0.3.0**.
 Wire protocol: **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components

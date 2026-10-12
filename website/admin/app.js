@@ -5,7 +5,13 @@
  zh: {roomRecords:'房间记录',trafficTop:'流量 Top 10',onlineTop:'在线 Top 10',roomId:'房间号',creatorIP:'创建 IP',stopRoom:'下线',confirmStop:'让这个房间下线？有效恢复票据将被拒绝。',actionFailed:'操作失败，请刷新检查',adminStopped:'手动下线',traffic:'流量',onlineTime:'在线',state:'状态',live:'当前',ended:'已结束',limited:'已限停',trafficStopped:'流量限停',ageStopped:'时长限停',noRooms:'暂无记录',memoryHistory:'内存记录',fileHistory:'文件记录',writeFailed:'记录保存失败',noLimits:'限额未启用',nodeRate:'节点',limits:'限额',enforce:'到限停止转发',title:'节点状态',key:'访问密钥',connect:'查看',updated:'更新',refresh:'刷新',pause:'暂停',resume:'继续',logout:'退出',rooms:'房间',connections:'连接',unauthenticated:'未认证连接',queueBytes:'队列占用',inRate:'入站速率',outRate:'出站速率',counters:'累计计数',receivedBytes:'入站字节',sentBytes:'出站字节',receivedFrames:'入站帧',sentFrames:'出站帧',queueRejected:'队列拒绝',reasons:'关闭原因',semanticsLabel:'统计口径',semantics:'计数随进程重启清零。入站统计认证后的帧，出站按入队统计。字节数不含传输开销。房间记录包括当前房间及近 24 小时结束的房间；在线时长不含节点停机时间。',idle:'',loading:'正在读取…',online:'',paused:'已暂停',auth:'密钥无效',disabled:'监控接口未启用。',failed:'读取失败，数据未更新',none:'暂无关闭记录',reset:'计数已重置'},
  en: {roomRecords:'Room records',trafficTop:'Traffic Top 10',onlineTop:'Online Top 10',roomId:'Room',creatorIP:'Creator IP',stopRoom:'Stop',confirmStop:'Stop this room and reject its valid restore tickets?',actionFailed:'Action failed. Refresh to check.',adminStopped:'Stopped',traffic:'Traffic',onlineTime:'Online',state:'Status',live:'Current',ended:'Ended',limited:'Limited',trafficStopped:'Traffic limit',ageStopped:'Age limit',noRooms:'No records',memoryHistory:'Memory only',fileHistory:'File history',writeFailed:'History save failed',noLimits:'Limits disabled',nodeRate:'Node',limits:'Limits',enforce:'Stops forwarding at the limit',title:'Node status',key:'Access key',connect:'View',updated:'Updated',refresh:'Refresh',pause:'Pause',resume:'Resume',logout:'Sign out',rooms:'Rooms',connections:'Connections',unauthenticated:'Unauthenticated',queueBytes:'Queued bytes',inRate:'Inbound rate',outRate:'Outbound rate',counters:'Cumulative counters',receivedBytes:'Inbound bytes',sentBytes:'Outbound bytes',receivedFrames:'Inbound frames',sentFrames:'Outbound frames',queueRejected:'Queue rejections',reasons:'Close reasons',semanticsLabel:'Counting method',semantics:'Counters reset on restart. Inbound counts authenticated frames; outbound counts enqueued frames. Bytes exclude transport overhead. Records cover current rooms and rooms ended within 24 hours; online time excludes node downtime.',idle:'',loading:'Loading…',online:'',paused:'Paused',auth:'Invalid key',disabled:'Monitoring is disabled.',failed:'Fetch failed. Data is stale.',none:'No closures recorded',reset:'Counters reset'}
  };
- let lang = navigator.language.startsWith('zh') ? 'zh' : 'en';
+ let lang;
+ try { const saved=localStorage.getItem('romzo-lang'); if(saved==='zh'||saved==='en')lang=saved; } catch(_) {}
+ for(const preferred of navigator.languages || [navigator.language || 'en']) {
+  const primary=preferred.toLowerCase().split('-')[0];
+  if(!lang && (primary==='zh'||primary==='en'))lang=primary;
+ }
+ lang=lang || 'en';
  let key = '', timer, request, generation = 0, paused = false, previous, snapshot, lastUpdated, status = 'idle', error = false, ranking = 'trafficTop';
  const t = name => translations[lang][name];
  const count = value => new Intl.NumberFormat(lang).format(value);
@@ -63,7 +69,7 @@
  $('refresh').addEventListener('click',refresh);
  $('pause').addEventListener('click',()=>{paused=!paused;clearTimeout(timer);$('pause').textContent=t(paused?'resume':'pause');if(paused)notice('paused');else refresh();});
  $('logout').addEventListener('click',()=>signOut());
- $('language').addEventListener('click',()=>{lang=lang==='zh'?'en':'zh';localize();});
+ $('language').addEventListener('click',()=>{lang=lang==='zh'?'en':'zh';try{localStorage.setItem('romzo-lang',lang);}catch(_){}localize();});
  window.addEventListener('pagehide',()=>signOut());
  localize();
 })();

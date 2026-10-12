@@ -38,10 +38,12 @@
 
   /* ---------- language ---------- */
 
-  function setLang(langCode) {
+  function setLang(langCode, remember) {
     root.dataset.lang = langCode;
     root.lang = langCode;
-    try { localStorage.setItem('romzo-lang', langCode); } catch (e) {}
+    if (remember !== false) {
+      try { localStorage.setItem('romzo-lang', langCode); } catch (e) {}
+    }
     var items = document.querySelectorAll('.lang-menu button');
     for (var i = 0; i < items.length; i++) {
       items[i].classList.toggle('on', items[i].dataset.setLang === langCode);
@@ -445,10 +447,15 @@
 
   var saved = null;
   try { saved = localStorage.getItem('romzo-lang'); } catch (e) {}
-  if (!saved) saved = (navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+  var initialLang = saved === 'zh' || saved === 'en' ? saved : null;
+  var preferred = navigator.languages || [navigator.language || 'en'];
+  for (var p = 0; !initialLang && p < preferred.length; p++) {
+    var primary = preferred[p].toLowerCase().split('-')[0];
+    if (primary === 'zh' || primary === 'en') initialLang = primary;
+  }
 
   highlightAll();
   addCopyButtons();
   startBgNet();
-  setLang(saved);
+  setLang(initialLang || 'en', false);
 })();
