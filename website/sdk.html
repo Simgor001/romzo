@@ -138,11 +138,19 @@ const roomOptions = {
 const room = await createRoom('romzo.net', roomOptions);
 
 const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
-const session = await RelaySession.connect(url, room.admission, room.transport);
+const session = await RelaySession.connect(
+  url, room.admission, room.transport
+);
 
-session.on('join', (_p, { channel, peer, key }) => { /* peer key for E2E crypto */ });
-session.on('receive', (value, { channel, peer }) => { /* a peer's payload */ });
-session.on('close', () => { /* reconnect with the recovery ticket */ });
+session.on('join', (_p, { channel, peer, key }) => {
+  // peer key for E2E crypto
+});
+session.on('receive', (value, { channel, peer }) => {
+  // a peer's payload
+});
+session.on('close', () => {
+  // reconnect with the recovery ticket
+});
 
 await session.subscribe('table');</code></pre>
         </div>
@@ -160,11 +168,19 @@ const roomOptions = {
 const room = await createRoom('romzo.net', roomOptions);
 
 const url = room.descriptor.origin.replace(/^http/, 'ws') + '/ws';
-const session = await RelaySession.connect(url, room.admission, room.transport);
+const session = await RelaySession.connect(
+  url, room.admission, room.transport
+);
 
-session.on('join', (_p, { channel, peer, key }) => { /* peer 公钥 key 可用于端侧加密 */ });
-session.on('receive', (value, { channel, peer }) => { /* 他人 send 的负载 */ });
-session.on('close', () => { /* 终端 error 帧或传输断开，用 recovery 票据重连 */ });
+session.on('join', (_p, { channel, peer, key }) => {
+  // peer 公钥 key 可用于端侧加密
+});
+session.on('receive', (value, { channel, peer }) => {
+  // 他人 send 的负载
+});
+session.on('close', () => {
+  // 断开后用 recovery 票据重连
+});
 
 await session.subscribe('table');</code></pre>
         </div>
@@ -191,7 +207,9 @@ await session.subscribe('table');</code></pre>
 const joined = await joinRoom('romzo.net', 'ABCD2345EF');
 const url = joined.signedDescriptor.descriptor.origin
   .replace(/^http/, 'ws') + '/ws';
-const session = await RelaySession.connect(url, joined.admission, joined.transport);
+const session = await RelaySession.connect(
+  url, joined.admission, joined.transport
+);
 await session.subscribe('table');</code></pre>
       </div>
     </div>

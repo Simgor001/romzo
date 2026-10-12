@@ -74,7 +74,8 @@
 } from 'romzo';
 
 const room = await createRoom('romzo.net', {
-  app: 'example', channels: [{ name: 'table', maxFrameBytes: 262144 }]
+  app: 'example',
+  channels: [{ name: 'table', maxFrameBytes: 262144 }]
 });
 
 const invite = buildInviteLink(room.descriptor.origin,
