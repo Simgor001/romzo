@@ -21,10 +21,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:website
-      - uses: actions/configure-pages@v5
-        with:
-          # Project site: assets must resolve under the /romzo/ base path.
-          static_site_generator: disabled
+      # No actions/configure-pages: the site uses relative asset paths, and
+      # that action currently crashes (TypeError) on this repo's Pages API
+      # responses. The /romzo/ base path needs no generated config.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website/
