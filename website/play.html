@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh" data-lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Romzo — Playground</title>
+<meta name="description" content="Create a live Romzo room in the browser and exchange messages over the public relay.">
+<link rel="icon" type="image/svg+xml" href="romzo-icon.svg">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "romzo": "https://cdn.jsdelivr.net/npm/romzo@0.3.0/+esm" } }
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<style>
+.play-grid { display: grid; gap: 20px; grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; }
+@media (min-width: 760px) { .play-grid { grid-template-columns: 1fr 1fr; } }
+.play-card { background: var(--panel, #f7f7f8); border: 1px solid var(--line, #e4e4e7); border-radius: 12px; padding: 20px; }
+.play-card h2 { margin: 0 0 12px; font-size: 18px; }
+.play-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+.play-log { min-height: 140px; max-height: 220px; overflow: auto; background: #fff; border: 1px solid var(--line, #e4e4e7); border-radius: 8px; padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.play-log p { margin: 2px 0; }
+.play-log .sys { color: #71717a; }
+.play-log .me { color: #2563eb; }
+.invite-box { word-break: break-all; font-size: 13px; background: #fff; border: 1px dashed var(--line, #d4d4d8); border-radius: 8px; padding: 8px 10px; }
+#ts-widget { min-height: 65px; }
+input.play-input { flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid var(--line, #d4d4d8); border-radius: 8px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="wordmark" href="index.html"><img src="romzo-icon.svg" width="28" height="28" alt="" aria-hidden="true">Romzo</a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="https://www.npmjs.com/package/romzo" aria-label="npm" title="npm">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 0v24h24V0H0zm19.385 19.385h-3.693V8.308H12v11.077H4.615V4.615h14.77v14.77z"/></svg>
+      </a>
+      <a href="https://github.com/Simgor001/romzo" aria-label="GitHub" title="GitHub">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297C5.37.297 0 5.67 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577v-2.234c-3.338.726-4.043-1.416-4.043-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.084 1.838 1.237 1.838 1.237 1.07 1.835 2.807 1.305 3.492.998.108-.776.418-1.305.762-1.605-2.665-.304-5.467-1.334-5.467-5.931 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.52 11.52 0 0 1 12 6.098c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.652.242 2.873.119 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.625-5.479 5.922.43.372.823 1.102.823 2.222v3.293c0 .319.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </a>
+    </div>
+    <div class="lang">
+      <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language / 语言">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </button>
+      <div class="lang-menu">
+        <button type="button" data-set-lang="en">English</button>
+        <button type="button" data-set-lang="zh">中文</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap home-content">
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="l-en">Playground</h2>
+    <h2 class="l-zh">在线体验</h2>
+    <p class="l-en">Create a real room on the public relay, share the invite link with a friend (or another browser), and exchange messages. Room creation is guarded by Turnstile.</p>
+    <p class="l-zh">在公共中继上创建一个真实房间，把邀请链接发给朋友（或另一个浏览器）互发消息。建房需通过 Turnstile 人机验证。</p>
+  </div>
+  <div class="wrap play-grid" style="margin-top: 20px;">
+
+    <div class="play-card">
+      <h2 class="l-en">1. Create a room</h2>
+      <h2 class="l-zh">1. 创建房间</h2>
+      <div id="ts-widget" class="cf-turnstile" data-sitekey="0x4AAAAAAFUPxg9x3hbPICdn" data-action="create-room"></div>
+      <div class="play-row">
+        <button class="btn primary" id="create" type="button"><span class="l-en">Create room</span><span class="l-zh">创建房间</span></button>
+      </div>
+      <div id="create-result" hidden>
+        <p class="l-en">Room code: <strong id="room-code"></strong></p>
+        <p class="l-zh">房间代码：<strong id="room-code-zh"></strong></p>
+        <p class="l-en">Invite link — open it in another browser to join:</p>
+        <p class="l-zh">邀请链接——在另一个浏览器打开即可加入：</p>
+        <p class="invite-box" id="invite-link"></p>
+        <div class="play-row"><button class="btn ghost" id="copy-invite" type="button"><span class="l-en">Copy link</span><span class="l-zh">复制链接</span></button></div>
+      </div>
+    </div>
+
+    <div class="play-card">
+      <h2 class="l-en">2. Exchange messages</h2>
+      <h2 class="l-zh">2. 互发消息</h2>
+      <div class="play-log" id="log"><p class="sys">—</p></div>
+      <div class="play-row">
+        <input class="play-input" id="message" type="text" maxlength="512" autocomplete="off" placeholder="message / 消息">
+        <button class="btn primary" id="send" type="button"><span class="l-en">Send</span><span class="l-zh">发送</span></button>
+      </div>
+      <p class="l-en" id="role-status" style="color:#71717a;font-size:13px;">Create or join a room to start.</p>
+      <p class="l-zh" id="role-status-zh" style="color:#71717a;font-size:13px;">创建或加入房间后开始。</p>
+    </div>
+
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <a class="wordmark" href="index.html"><img src="romzo-icon.svg" width="28" height="28" alt="" aria-hidden="true">Romzo</a>
+      <a class="foot-license" href="https://github.com/Simgor001/romzo/blob/main/LICENSE"><span class="l-zh">源码许可证：Apache-2.0</span><span class="l-en">Source license: Apache-2.0</span></a>
+    </div>
+    <ul class="foot-links">
+      <li><a href="sdk.html"><span class="l-zh">SDK 文档</span><span class="l-en">SDK docs</span></a></li>
+      <li><a href="play.html"><span class="l-zh">在线体验</span><span class="l-en">Playground</span></a></li>
+      <li><a href="terms.html"><span class="l-zh">服务条款</span><span class="l-en">Terms</span></a></li>
+      <li><a href="https://github.com/Simgor001/romzo">GitHub</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+<script type="module">
+import { createRoom, joinRoom, RelaySession, buildInviteLink, parseInviteHash } from 'romzo';
+
+const ORIGIN = 'https://romzo.net';
+const CHANNEL = 'lobby';
+const logEl = document.getElementById('log');
+const statusEls = [document.getElementById('role-status'), document.getElementById('role-status-zh')];
+let session = null;
+let widgetId = null;
+
+function log(text, cls) {
+  const p = document.createElement('p');
+  if (cls) p.className = cls;
+  p.textContent = text;
+  if (logEl.firstChild && logEl.firstChild.textContent === '—') logEl.textContent = '';
+  logEl.append(p);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(en, zh) {
+  statusEls[0].textContent = en; statusEls[1].textContent = zh;
+}
+function socketFactory(url) { return new WebSocket(url); }
+const wsUrl = ORIGIN.replace(/^http/, 'ws') + '/ws';
+const roomOptions = { app: 'romzo-playground', channels: [{ name: CHANNEL, maxFrameBytes: 16384 }] };
+
+async function openSession(admission, transport, label) {
+  session = await RelaySession.connect(wsUrl, admission, transport, { webSocketFactory: socketFactory });
+  await session.subscribe(CHANNEL);
+  session.on('receive', (value, { peer }) => log(`[${label}] ${JSON.stringify(value)} <${peer.slice(0, 8)}…>`));
+  session.on('join', (_p, meta) => log(`peer joined: ${meta.key ? meta.key.slice(0, 8) + '…' : '?'}`, 'sys'));
+  session.on('leave', (_p, meta) => log(`peer left: ${meta.key ? meta.key.slice(0, 8) + '…' : '?'}`, 'sys'));
+  session.on('close', () => log('session closed', 'sys'));
+}
+
+// Host flow
+document.getElementById('create').addEventListener('click', async () => {
+  const btn = document.getElementById('create');
+  const token = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
+  if (!token) { log('complete the Turnstile check first', 'sys'); return; }
+  btn.disabled = true;
+  try {
+    const room = await createRoom(ORIGIN, roomOptions, { turnstileToken: token });
+    if (window.turnstile && widgetId !== null) window.turnstile.reset(widgetId);
+    else if (window.turnstile) window.turnstile.reset();
+    const invite = buildInviteLink(ORIGIN, room.descriptor.code, location.origin + '/');
+    document.getElementById('room-code').textContent = room.descriptor.code;
+    document.getElementById('room-code-zh').textContent = room.descriptor.code;
+    document.getElementById('invite-link').textContent = invite;
+    document.getElementById('create-result').hidden = false;
+    await openSession(room.admission, room.transport, 'host');
+    setStatus('Hosting room ' + room.descriptor.code + ' — waiting for a guest…',
+              '正在主持房间 ' + room.descriptor.code + '——等待访客加入…');
+    log('room created: ' + room.descriptor.code, 'sys');
+  } catch (e) {
+    log('create failed: ' + (e && e.message ? e.message : e), 'sys');
+    if (window.turnstile) window.turnstile.reset(widgetId ?? undefined);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('copy-invite').addEventListener('click', async () => {
+  const link = document.getElementById('invite-link').textContent;
+  try { await navigator.clipboard.writeText(link); log('invite copied', 'sys'); }
+  catch { log('copy failed — select the link manually', 'sys'); }
+});
+
+document.getElementById('send').addEventListener('click', async () => {
+  const input = document.getElementById('message');
+  const value = input.value.trim();
+  if (!value) return;
+  if (!session) { log('no session yet', 'sys'); return; }
+  try {
+    await session.send(CHANNEL, { text: value });
+    log('me: ' + value, 'me');
+    input.value = '';
+  } catch (e) {
+    log('send failed: ' + (e && e.message ? e.message : e), 'sys');
+  }
+});
+document.getElementById('message').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('send').click();
+});
+
+// Guest flow: open an invite link, e.g. https://romzo.net/play.html#ABCD123XYZ@romzo.net
+window.addEventListener('DOMContentLoaded', async () => {
+  if (!location.hash || location.hash.length < 2) return;
+  let parsed = null;
+  try { parsed = parseInviteHash(location.hash); } catch { /* invalid hash */ }
+  if (!parsed) return;
+  if (parsed.origin !== ORIGIN) { log('invite points to another relay: ' + parsed.origin, 'sys'); return; }
+  document.getElementById('create').disabled = true;
+  setStatus('Joining room ' + parsed.code + '…', '正在加入房间 ' + parsed.code + '…');
+  try {
+    const guest = await joinRoom(ORIGIN, parsed.code);
+    await openSession(guest.admission, guest.transport, 'guest');
+    setStatus('Joined room ' + parsed.code + ' — say hi below.',
+              '已加入房间 ' + parsed.code + '——在下方打个招呼吧。');
+    log('joined room: ' + parsed.code, 'sys');
+  } catch (e) {
+    log('join failed: ' + (e && e.message ? e.message : e), 'sys');
+    setStatus('Join failed.', '加入失败。');
+  }
+});
+</script>
+</body>
+</html>

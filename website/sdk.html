@@ -120,10 +120,10 @@ npm run build -w romzo</code></pre>
         <p class="l-en">Create the room, confirm it on the relay, then open a
           WebSocket session and subscribe to channels.</p>
         <p class="l-zh">创建房间、在中继上确认，然后建立 WebSocket 会话并订阅频道。</p>
-        <p class="l-en">Relays with <code>CREATE_AUTH=password</code> take
-          <code>{ password }</code> as the third argument of <code>createRoom</code>.</p>
-        <p class="l-zh">开了 <code>CREATE_AUTH=password</code> 的中继，
-          <code>createRoom</code> 第三个参数传 <code>{ password }</code>。</p>
+        <p class="l-en">The public relay enforces Turnstile on room creation:
+          pass <code>{ turnstileToken }</code> as the third argument of <code>createRoom</code>.
+          Relays with <code>CREATE_AUTH=password</code> take <code>{ password }</code> instead.</p>
+        <p class="l-zh">公共中继在建房时强制 Turnstile：<code>createRoom</code> 第三个参数传 <code>{ turnstileToken }</code>；开了 <code>CREATE_AUTH=password</code> 的中继则传 <code>{ password }</code>。</p>
       </div>
       <div>
         <div class="code-panel l-en">
@@ -351,6 +351,7 @@ const session = await RelaySession.connect(wsUrl,
     </div>
     <ul class="foot-links">
       <li><a href="sdk.html"><span class="l-zh">SDK 文档</span><span class="l-en">SDK docs</span></a></li>
+      <li><a href="play.html"><span class="l-zh">在线体验</span><span class="l-en">Playground</span></a></li>
       <li><a href="terms.html"><span class="l-zh">服务条款</span><span class="l-en">Terms</span></a></li>
       <li><a href="https://github.com/Simgor001/romzo">GitHub</a></li>
     </ul>
