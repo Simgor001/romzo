@@ -17,6 +17,12 @@ go run . init > ../deploy/.env.secrets
 3. Set `PUBLIC_ORIGIN` and `CLIENT_ORIGINS`.
 4. From `relay/`, run `go run . --env-file ../deploy/.env`. The environment file is ignored by Git.
 
+The template lists both common and optional settings. Its connection, frame and
+IP limits match the built-in defaults; its three explicit room/node limits
+remain enabled. Turnstile, trusted proxies, history files and creator IP recording
+are optional. Secret fields still require values from initialization; leaving
+them empty does not generate keys at startup.
+
 The server serves HTTP/WS behind a TLS reverse proxy; PUBLIC_ORIGIN must be a canonical HTTPS origin, except for explicit loopback development.
 Do not expose the unencrypted listener publicly.
 `relay -version` reports 1.3.0.

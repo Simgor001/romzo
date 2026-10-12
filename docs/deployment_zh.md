@@ -16,6 +16,10 @@ go run . init > ../deploy/.env.secrets
 3. 设置 `PUBLIC_ORIGIN` 与 `CLIENT_ORIGINS`。
 4. 在 `relay/` 中运行 `go run . --env-file ../deploy/.env`。环境文件已被 Git 忽略。
 
+模板列出常用和可选配置。连接、帧率和 IP 限流与内置默认值一致；模板中的三项
+房间／节点限额仍然启用。Turnstile、可信代理、历史记录文件和创建 IP 记录按需
+配置。空密钥仍须填入初始化生成的值，当前不会在启动时自动生成。
+
 服务端以 HTTP/WS 形式运行在 TLS 反向代理之后；除显式回环开发外，PUBLIC_ORIGIN 必须是规范的 HTTPS 源站。不要把未加密监听口暴露到公网。`relay -version` 报告 1.3.0。
 
 ## 配置

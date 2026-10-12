@@ -40,7 +40,7 @@ SDK-generated private keys are extractable so an application can export them for
 
 ## Compatibility and verification
 
-Server release 1.3.0 and SDK 0.2.0 implement public protocol `romzo/v1`, with `/api/v1/` HTTP routes, `/ws` for WebSocket and `/.well-known/romzo` for discovery.
+Server release 1.3.0 and SDK 0.3.0 implement public protocol `romzo/v1`, with `/api/v1/` HTTP routes, `/ws` for WebSocket and `/.well-known/romzo` for discovery.
 Cryptographic domains use the `romzo/` prefix.
 Clients and servers must agree on the protocol; tickets and signatures from other protocols cannot be reused.
 Shared fixtures verify canonical encoding and cryptographic outputs in Go and TypeScript.

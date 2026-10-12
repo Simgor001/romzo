@@ -59,8 +59,7 @@ Build the SDK from this workspace with `npm run build`.
 
 Invites use `https://client/#ABCD123XYZ@relay.example.com`:
 
-- An omitted port is the service default port 9224.
-- A relay on 443 must write `@relay.example.com:443` explicitly.
+- An omitted port is the service default port 443; a relay on any other port must write it explicitly, e.g. `@relay.example.com:9224`.
 - Passwords, private keys and recovery tickets never belong in URLs.
 
 The application consumes and clears the fragment and owns browser-history recovery.
