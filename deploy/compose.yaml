@@ -8,6 +8,10 @@ services:
       - "127.0.0.1:9224:9224"
     restart: unless-stopped
     read_only: true
+    # Writable mount for METRICS_HISTORY_FILE (room history survives restarts).
+    # Host dir must be writable by uid 65532 (the container user).
+    volumes:
+      - /opt/romzo/data:/data
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 256m

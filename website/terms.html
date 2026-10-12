@@ -53,10 +53,12 @@
 <section id="data"><h2 class="l-zh">5. 数据与安全</h2><h2 class="l-en">5. Data and security</h2><p class="l-zh">测试节点不提供保密或重要数据的托管。不要发送口令、私钥、身份证件、支付资料等敏感信息。HTTPS/WSS 只加密传输通道，应用负载是否加密由接入应用决定。</p>
 <p class="l-zh">为排障、控制资源消耗和防止滥用，节点会记录来源 IP、房间号、连接时间、连接数、频道数及入站和出站字节数。开启创建 IP 记录后，还会保存房间创建请求的来源 IP。IP 可能多人共用，不能单独用来认定个人身份。</p>
 <p class="l-zh">房间运行记录仅供持有管理密钥的运营人员查看，不公开展示，也不回传给开源项目方；监控不记录消息正文。房间结束 24 小时后运行记录自动清除，关联文件在下一次保存时清理。</p>
+<p class="l-zh">建房需通过 Cloudflare Turnstile 人机验证；验证过程由 Cloudflare 依据其隐私政策处理浏览器信号，本站不另行收集验证数据。</p>
 <p class="l-zh">运营人员可以让房间下线、断开其连接并拒绝恢复票据。房间恢复时，若创建记录已不存在，恢复者的 IP 不会被当作创建 IP。</p>
 <p class="l-zh">自托管节点的数据处理由其运营者自行说明。运营者处理反馈、排障或依法配合调查时，只会在必要且合法的范围内使用和披露数据。</p><p class="l-en">Do not send passwords, private keys, identity documents, payment details or other sensitive information through this relay; it does not host confidential or important data. HTTPS/WSS encrypts transport only; whether application payloads are encrypted is up to the application. </p>
 <p class="l-en">For troubleshooting, resource control and abuse prevention, the relay records source IPs, room codes, connection times, connection and channel counts, and inbound/outbound byte totals. With creator-IP recording enabled, it also stores the source IP of the room-allocation request. IPs may be shared and do not by themselves identify a person. </p>
 <p class="l-en">Room records are accessible only to operators holding the management key. They are not displayed publicly or shared with the open-source project, and monitoring does not record message bodies. Room records are deleted 24 hours after the room ends; associated files are cleaned up at the next save. </p>
+<p class="l-en">Room creation requires a Cloudflare Turnstile check; Cloudflare processes browser signals for the verification under its own privacy policy, and this site does not collect additional verification data.</p>
 <p class="l-en">Operators may take a room offline, disconnect its clients and reject restore tickets. If a room’s creation record no longer exists, the restorer’s IP is not treated as the creator IP. </p>
 <p class="l-en">Self-hosted operators define their own data handling. When handling feedback, troubleshooting or lawful investigations, the operator uses and discloses data only to the extent necessary and lawful.</p>
 </section>
@@ -65,8 +67,8 @@
 <section id="changes"><h2 class="l-zh">7. 变更与责任边界</h2><h2 class="l-en">7. Changes and liability</h2><p class="l-zh">我们可因维护、费用、安全或合规需要调整或停止测试服务；重大规则变化会在本页注明版本并提前提示，不追究生效前已发生的行为。测试服务不保证消息必达、持续在线或满足特定用途；使用者应评估风险并备份。双方责任按适用法律确定，本条款不排除法律禁止排除的责任，也不免除运营者依法应承担的义务。</p><p class="l-en">We may change or stop the test service for maintenance, cost, security or compliance reasons. Material rule changes should be dated here and reasonably announced, without retroactively expanding liability for past conduct. The test service does not guarantee delivery, continuous uptime or suitability for a particular purpose. Assess risks and keep backups. Applicable law determines each party’s liability. These terms do not exclude liability that cannot lawfully be excluded or waive the operator’s statutory obligations.</p>
 </section>
 <section id="contact"><h2 class="l-zh">8. 问题反馈</h2><h2 class="l-en">8. Feedback</h2>
-<p class="l-zh">节点无需注册，不核验使用者真实身份。反馈问题时可提供发生时间、相关房号和问题描述，供我们定位故障或滥用；我们不承诺识别相关使用者的真实身份。请勿在公开 Issue 中提交个人信息、票据、私钥或完整消息记录。私密反馈渠道将在确认后补充。</p>
-<p class="l-en">The relay requires no registration and does not verify users’ real identities. To help us investigate failures or abuse, provide the time, relevant room code and a description of the issue. We do not promise to identify the users involved. Do not post personal information, tickets, private keys or complete message records in public issues. A private feedback channel will be added after confirmation.</p>
+<p class="l-zh">节点无需注册，不核验使用者真实身份。反馈问题时可提供发生时间、相关房号和问题描述，供我们定位故障或滥用；我们不承诺识别相关使用者的真实身份。请勿在公开 Issue 中提交个人信息、票据、私钥或完整消息记录。私密反馈渠道：<a href="mailto:Simgor001@outlook.com">Simgor001@outlook.com</a>。</p>
+<p class="l-en">The relay requires no registration and does not verify users’ real identities. To help us investigate failures or abuse, provide the time, relevant room code and a description of the issue. We do not promise to identify the users involved. Do not post personal information, tickets, private keys or complete message records in public issues. Private feedback: <a href="mailto:Simgor001@outlook.com">Simgor001@outlook.com</a>.</p>
 </section>
 
 </main>
