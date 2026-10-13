@@ -78,6 +78,14 @@ The SDK allows http origins on loopback only; production relay origins must be H
 
 ## Development
 
+`npm run test:docker-load` builds the current relay image and runs container-local
+traffic in an isolated Docker network with a 2 CPU / 256 MiB relay. It covers
+8/32/64 clients, sustained broadcasts, slow consumers, frame-rate enforcement and
+container-restart member recovery. Reports are written to
+`test-results/docker-load/<timestamp>/report.md` and `report.json`. Cleanup removes
+only containers, network and temporary state volume created by the test. This
+does not validate public networks or browser RTC.
+
 `npm run test:mobile` exercises the playground with Chromium and WebKit phone profiles.
 To run the same flow in a connected Android emulator with Chrome, enable command-line debugging
 with `adb -s <serial> shell am set-debug-app --persistent com.android.chrome`, set

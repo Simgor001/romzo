@@ -123,7 +123,7 @@ func (s *Server) sweepLocked() {
 		}
 		if (!r.Confirmed && !r.Expires.After(now)) || (r.Confirmed && !active && !r.Active.Add(ttl).After(now)) {
 			record := s.sampleRoomLocked(r)
-			record.EndedAt = now.UnixMilli()
+			record.EndedAt = record.UpdatedAt
 			record.online = false
 			delete(s.rooms, code)
 			delete(s.requests, r.Request.RequestID)

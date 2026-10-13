@@ -341,6 +341,9 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 			s.terminate(p, closeReason)
 			return
 		}
+		// Every accepted application frame counts as connection activity, not
+		// just subscribe/keepalive. This must agree with the 45s read timeout.
+		p.lastSeen = now
 		s.enqueueLocked(p, response)
 		s.mu.Unlock()
 	}

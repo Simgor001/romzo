@@ -84,7 +84,7 @@ func (s *Server) attachRoomRecordLocked(r *Room) *roomRecord {
 	if !s.cfg.RecordCreatorIP {
 		record.CreatorIP = ""
 	}
-	record.UpdatedAt = s.now().UnixMilli()
+	record.UpdatedAt = max(s.now().UnixMilli(), record.UpdatedAt, record.ObservedAt+record.OnlineMillis)
 	record.lastAt = s.now()
 	record.online = false
 	return record
@@ -101,16 +101,21 @@ func (s *Server) sampleRoomLocked(r *Room) *roomRecord {
 		record.OnlineMillis += millis
 		record.onlineRemainder -= time.Duration(millis) * time.Millisecond
 	}
-	record.lastAt = now
+	if record.lastAt.IsZero() || now.After(record.lastAt) {
+		record.lastAt = now
+	}
 	record.online = len(r.Peers) > 0
-	record.UpdatedAt = now.UnixMilli()
+	// Elapsed time can retain a monotonic clock while Unix timestamps move
+	// backwards (NTP/VM correction). Preserve the persisted time invariants
+	// without discarding online time or weakening loadHistory validation.
+	record.UpdatedAt = max(now.UnixMilli(), record.UpdatedAt, record.ObservedAt+record.OnlineMillis)
 	return record
 }
 func (s *Server) stopRoomLocked(r *Room, reason string) {
 	record := s.sampleRoomLocked(r)
 	if record.StopReason == "" {
 		record.StopReason = reason
-		record.EndedAt = s.now().UnixMilli()
+		record.EndedAt = record.UpdatedAt
 	}
 	for _, p := range r.Peers {
 		if p.cancel != nil {

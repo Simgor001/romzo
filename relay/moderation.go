@@ -36,8 +36,8 @@ func (s *Server) moderate(w http.ResponseWriter, r *http.Request) {
 	}
 	// Keep a tombstone longer than any currently valid restore lease.
 	record.StopReason = "admin_stopped"
-	record.EndedAt = s.now().UnixMilli()
-	record.UpdatedAt = record.EndedAt
+	record.UpdatedAt = max(s.now().UnixMilli(), record.UpdatedAt, record.ObservedAt+record.OnlineMillis)
+	record.EndedAt = record.UpdatedAt
 	for code, room := range s.rooms {
 		if room.MonitorID == body.ID {
 			s.stopRoomLocked(room, "admin_stopped")

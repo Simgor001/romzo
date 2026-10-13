@@ -68,6 +68,12 @@ await session.subscribe('table');
 
 ## 开发
 
+`npm run test:docker-load` 构建当前 relay 镜像并在隔离的 Docker 内部网络中打流。
+测试使用 2 CPU／256 MiB 的 relay 容器，覆盖 8／32／64 个客户端、持续广播、
+慢接收端、超帧率断开及容器重启后的成员恢复。报告保存到
+`test-results/docker-load/<时间>/report.md` 和 `report.json`；测试结束只清理本次
+创建的容器、网络、临时状态卷，不影响其他服务。此测试不验证公网或浏览器 RTC。
+
 `npm run test:mobile` 使用 Chromium 与 WebKit 手机配置验证体验页。
 若要在已连接的 Android 模拟器内使用 Chrome，先执行
 `adb -s <设备序列号> shell am set-debug-app --persistent com.android.chrome`，

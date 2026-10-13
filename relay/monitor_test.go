@@ -19,6 +19,32 @@ func monitoredTestRoom(s *Server) *Room {
 	s.rooms[r.Signed.Descriptor.Code] = r
 	return r
 }
+
+func TestHistoryRemainsLoadableAfterBackwardClockStep(t *testing.T) {
+	cfg := testConfig()
+	cfg.MetricsHistoryFile = filepath.Join(t.TempDir(), "history.json")
+	s := newServer(cfg)
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	room := monitoredTestRoom(s)
+	room.Peers["online"] = &Peer{}
+	s.sampleRoomLocked(room)
+	now = now.Add(5 * time.Second)
+	s.sampleRoomLocked(room)
+	// An NTP/VM wall-clock correction cannot invalidate already accumulated
+	// online time and make the next process unable to read its own snapshot.
+	now = now.Add(-3 * time.Second)
+	if err := s.saveHistory(); err != nil {
+		t.Fatal(err)
+	}
+	restarted := newServer(cfg)
+	if err := restarted.loadHistory(); err != nil {
+		t.Fatal(err)
+	}
+	if restarted.monitor.records[room.MonitorID].OnlineMillis != 5000 {
+		t.Fatal("already counted online time was discarded")
+	}
+}
 func TestRoomRankingsMetadataAndHistory(t *testing.T) {
 	s := newServer(testConfig())
 	now := time.Now()

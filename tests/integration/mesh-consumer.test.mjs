@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, symlinkSync, rmSync, existsSync, lstatSync, rmdirSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,7 +60,14 @@ assert.equal(typeof mesh.attachMesh,'function');
   } finally {
     if (dirname(resolve(output)) !== resolve(tmpdir())) throw Error('unexpected cleanup path');
     // Remove junctions explicitly before recursively cleaning the consumer temp directory.
-    for (const name of ['romzo', '@types']) rmSync(join(output, 'node_modules', name), { force: true, recursive: true });
+    for (const name of ['romzo', '@types']) {
+      const link = join(output, 'node_modules', name);
+      if (!existsSync(link)) continue;
+      if (!lstatSync(link).isSymbolicLink()) throw Error('consumer fixture link was replaced');
+      // Never recursively walk a Windows junction: that can remove the target.
+      if (process.platform === 'win32') rmdirSync(link); else unlinkSync(link);
+    }
     rmSync(output, { force: true, recursive: true });
+    assert.ok(existsSync(resolve(root, 'node_modules/@types/node/index.d.ts')), 'consumer cleanup removed installed Node types');
   }
 });

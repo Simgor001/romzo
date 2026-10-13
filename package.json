@@ -24,6 +24,7 @@
     "build:website": "node scripts/build-website.mjs",
     "test:mesh": "npm run build && npm run build:website && node --test tests/integration/mesh-consumer.test.mjs tests/integration/mesh.test.mjs",
     "test:members": "npm run build:website && node --test tests/integration/members.test.mjs",
+    "test:docker-load": "node scripts/docker-load.mjs",
     "test:mobile": "npm run build:website && node --test tests/integration/playground.test.mjs"
   },
   "devDependencies": {
