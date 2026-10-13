@@ -12,7 +12,20 @@ Wire protocol: **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
 
-Released in 1.5.0: liveness and monitoring time-invariant fixes under container load, a `-health` probe and an in-image HEALTHCHECK so orchestrators can roll back a bad deploy; released in 1.4.0: pluggable creation attestation — `CREATE_AUTH=turnstile`, `oauth`, or `turnstile+oauth` — funneling into one relay-signed, single-use, host-key-bound grant. Turnstile verification now pins the siteverify hostname, and a built-in generic OAuth2 client (GitHub, itch.io, OIDC providers) issues grants carrying the login as quota subject, so an OAuth relay doubles as a private server. The SDK exchanges tokens/redirects automatically via a verification popup; released in 1.3.1: public relays support `CLIENT_ORIGINS=*`, with management access isolated by `ADMIN_ORIGINS`.
+Released in 1.5.0:
+
+- liveness and monitoring time-invariant fixes under container load,
+- a `-health` probe and an in-image HEALTHCHECK so orchestrators can roll back a bad deploy.
+
+Released in 1.4.0:
+
+- pluggable creation attestation — `CREATE_AUTH=turnstile`, `oauth`, or `turnstile+oauth` — funneling into one relay-signed, single-use, host-key-bound grant,
+- Turnstile verification now pins the siteverify hostname,
+- a built-in generic OAuth2 client (GitHub, itch.io, OIDC providers) issues grants carrying the login as quota subject, so an OAuth relay doubles as a private server; the SDK exchanges tokens/redirects automatically via a verification popup.
+
+Released in 1.3.1:
+
+- public relays support `CLIENT_ORIGINS=*`, with management access isolated by `ADMIN_ORIGINS`.
 
 | Component | Path | Description |
 | --- | --- | --- |
@@ -24,7 +37,7 @@ Released in 1.5.0: liveness and monitoring time-invariant fixes under container 
 
 ## Quick start
 
-Requires Node.js 24 and Go 1.26.1.
+Requires Node.js 24+ and Go 1.26.1.
 From a clean checkout:
 
 ```sh
@@ -63,6 +76,10 @@ Invites use `https://client/#ABCD123XYZ/relay.example.com`:
 
 - An omitted port is the service default port 443; a relay on any other port must write it explicitly, e.g. `@relay.example.com:9224`.
 - Passwords, private keys and recovery tickets never belong in URLs.
+
+LAN play carries direct-connect candidates instead of a relay origin: `#CODE/lan`
+discovers the room on the local network by code, or `#CODE/host1,host2:port`
+lists up to 8 private candidates sharing one port (see `buildLanInvite` in the SDK).
 
 The application consumes and clears the fragment and owns browser-history recovery.
 The SDK allows http origins on loopback only; production relay origins must be HTTPS.

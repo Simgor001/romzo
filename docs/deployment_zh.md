@@ -31,7 +31,7 @@ docker run --rm romzo-local:dev init > deploy/.env.secrets
 | `AUTH_SALT`、`TICKET_KEY` | 填初始化结果。不换值，恢复票据才继续有效。 |
 | `GRANT_KEY` | 填初始化结果。Turnstile 和 OAuth 建房都要用。 |
 | `METRICS_KEY` | 填初始化结果，管理页面用它登录；留空则关掉监控和管理接口。 |
-| `MEMBER_STATE_FILE` | `/data/members.json`，存参与者编号，在线体验需要。 |
+| `MEMBER_STATE_FILE` | `/data/members.json`，存参与者编号，play 页面需要。 |
 | `METRICS_HISTORY_FILE` | `/data/rooms.json`，存流量统计和房间下线记录。 |
 
 来源带协议和端口，如 `https://game.example.com`、`http://127.0.0.1:7104`，不带路径。来源限制只决定谁能调接口，不代替身份认证和流量限制。
@@ -46,7 +46,7 @@ docker run --rm romzo-local:dev init > deploy/.env.secrets
 | `oauth` | `OAUTH_PROVIDER`、`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、授权／token／用户信息地址、`GRANT_KEY` |
 | `turnstile+oauth` | 两组都填 |
 
-`play.html` 用 Turnstile 建房，部署这个页面就设 `CREATE_AUTH=turnstile`，site key 与 `TURNSTILE_SITEKEY` 一致。组件所在网页的域名与中继不同时，把网页域名填进 `TURNSTILE_HOSTNAMES`，Cloudflare 的组件配置也要放行该域名。设了 `TURNSTILE_ACTION` 就要和页面组件的 action 一致。
+`play.html` 建房需要 `CREATE_AUTH` 含 `turnstile` 或 `oauth`。SDK 会内嵌中继托管的验证页，site key 只配在中继的 `TURNSTILE_SITEKEY` 上，由服务端下发给验证页。`TURNSTILE_HOSTNAMES` 只需填中继域名——默认就是 `PUBLIC_ORIGIN` 的主机名；`TURNSTILE_ACTION` 由服务端配置，不存在与页面组件对齐的问题。
 
 OAuth 回调地址是 `PUBLIC_ORIGIN` 加 `/api/v1/auth/oauth/callback`。其余可选变量见 [环境变量模板](../deploy/.env.example)。
 
@@ -79,7 +79,7 @@ npm ci
 npm run build:website
 ```
 
-整个 `website/` 目录拷到静态目录，包括生成的 `website/sdk/`。用自己的中继域名时，改 `website/play.html` 的 `ORIGIN` 和 `website/site.js` 的节点地址；Turnstile site key 在 `play.html` 的 `ts-widget` 元素里。管理页面在 `website/admin/`。
+整个 `website/` 目录拷到静态目录，包括生成的 `website/sdk/`。用自己的中继域名时，改 `website/play.html` 的 `ORIGIN` 和 `website/site.js` 的节点地址。管理页面在 `website/admin/`。
 
 只在代理可信时设 `TRUSTED_PROXIES`，值是代理 IP 的 CIDR。中继本身走 HTTP，公网 HTTPS 由反代提供。邀请链接用公网地址，别填容器端口或 `127.0.0.1`。
 
@@ -158,7 +158,7 @@ npm run test:docker-load
 
 Play 使用签名房间配置 `identityPolicy: {exclusive:true, ttlMs:1800000}`。保持 `MEMBER_STATE_FILE` 指向可写的持久目录，并随数据备份该文件；成员编号和离线身份期限会在中继重启后恢复。人数上限由 `MAX_ROOM_CONNECTIONS` 控制，每个独占房间保留最多两倍上限的公钥记录。表满会拒绝新身份；不会删除有效离线身份腾位置，也不会重用成员编号。
 
-Turnstile 配置中的域名应是验证页面所在的中继域名。SDK 从发现接口取得 `/api/v1/auth/turnstile`，游戏在弹层 iframe 中加载它。生产不需要把 `127.0.0.1` 或每个接入游戏域名加入 Turnstile 白名单。本地测试使用独立测试配置。
+Turnstile 配置中的域名应是验证页面所在的中继域名。SDK 从发现接口取得 `/api/v1/auth/turnstile`，游戏在弹层 iframe 中加载它。生产不需要把 localhost、`127.0.0.1` 或每个接入游戏域名加入 Turnstile 白名单。本地测试使用独立测试配置。
 
 `CLIENT_ORIGINS` 同时控制 HTTP、WebSocket 和验证页面的嵌入来源。公共服务允许任意 HTTP(S) 网页接入时可设为 `*`；限制接入时填写精确来源，包括协议和端口。域名限制不证明项目开源。验证窗口使用服务端 `TURNSTILE_ACTION`，与验证检查保持一致。
 

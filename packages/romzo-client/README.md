@@ -4,7 +4,7 @@
 
 Romzo client SDK — a standalone client implementation of the room-based opaque WebSocket relay (`romzo/v1` protocol).
 
-Uses Web Crypto and WebSocket (HTTPS browsers / Node 22+), with `@noble/curves` as the Ed25519 fallback for browsers without native support. Use `exportPrivateKey` and `importKeyPair` for portable key persistence; fallback keys are opaque handles rather than native CryptoKeys.
+Uses Web Crypto and WebSocket (HTTPS browsers / Node 24+), with `@noble/curves` as the Ed25519 fallback for browsers without native support. Use `exportPrivateKey` and `importKeyPair` for portable key persistence; fallback keys are opaque handles rather than native CryptoKeys.
 
 ## Optional invitation QR codes
 
@@ -90,18 +90,22 @@ DC envelopes for the negotiated SCTP limit use relay instead. All-relay broadcas
 uses one native broadcast; mixed broadcast uses one copy per recipient. A queued
 native broadcast rejects if its recipient roster changes before dispatch.
 
-**Budgets:** defaults are 128 queued/in-flight delivery items, 1 MiB total,
-15-second waiting deadline; relay send/signaling share 32 frames/s (burst 8) and
-256 KiB/s (burst 512 KiB). Control messages have priority and remain bounded.
-Queue overflow rejects without silently merging/dropping application messages;
-mixed broadcast reserves all copies before dispatch. DC high/low water marks are
-256/64 KiB; messages larger than the high water mark wait for an empty buffer.
-Configure `maxQueuedItems/maxQueuedBytes/queueTimeoutMs`,
-`relayFramesPerSecond/relayFrameBurst/relayBytesPerSecond/relayByteBurst`, and
-`bufferedAmountHighWaterMark/bufferedAmountLowWaterMark` in mesh options. A relay
-packet larger than the configured byte burst rejects. Match custom relay limits;
-these budgets exclude automatic relay keepalive, subscriptions and direct escape
-hatch calls, and do not guarantee immunity to all server limits.
+**Budgets:** defaults are 128 queued/in-flight delivery items, 1 MiB total and a
+15-second waiting deadline. Relay send/signaling share 32 frames/s (burst 8) and
+256 KiB/s (burst 512 KiB); control messages have priority and remain bounded. DC
+high/low water marks are 256/64 KiB; messages larger than the high water mark wait
+for an empty buffer.
+
+- Queue overflow rejects without silently merging or dropping application
+  messages; a mixed broadcast reserves capacity for all copies before dispatch.
+- Configure `maxQueuedItems`, `maxQueuedBytes`, `queueTimeoutMs`,
+  `relayFramesPerSecond`, `relayFrameBurst`, `relayBytesPerSecond`,
+  `relayByteBurst`, `bufferedAmountHighWaterMark` and
+  `bufferedAmountLowWaterMark` in mesh options.
+- A relay packet larger than the configured byte burst rejects.
+- When the relay runs custom limits, lower these budgets to match. The budgets
+  exclude automatic relay keepalive, subscriptions and direct escape-hatch
+  calls, and do not guarantee immunity to all server limits.
 
 **Signaling and trust:** versioned hello requests get one reply per peer; replies
 never get replies. The smaller `(key,peerId)` tuple owns offers and generation
@@ -184,14 +188,14 @@ await session.subscribe("table");
 
 ```ts
 import { buildInviteLink, parseInviteHash } from "romzo";
-const link = buildInviteLink("https://romzo.net:9224", "ABCD123XYZ", "https://game.example.com/");
-// https://game.example.com/#ABCD123XYZ/romzo.net:9224
+const link = buildInviteLink("https://romzo.net", "ABCD123XYZ", "https://game.example.com/");
+// https://game.example.com/#ABCD123XYZ/romzo.net
 const address = parseInviteHash(new URL(link).hash);
-// { origin: "https://romzo.net:9224", code: "ABCD123XYZ" }
+// { origin: "https://romzo.net", code: "ABCD123XYZ" }
 ```
 
 An omitted invite port is the service default port **443** (`DEFAULT_RELAY_PORT`).
-Port 443 may be omitted. Other ports must be explicit: `buildInviteLink("https://romzo.net:9224", ...)` produces `#ABCD123XYZ/romzo.net:9224`. Legacy invitations using `@` are still accepted.
+Other ports must be explicit: `buildInviteLink("https://romzo.net:9224", ...)` produces `#ABCD123XYZ/romzo.net:9224`. Legacy invitations using `@` are still accepted.
 Local loopback development should always write its port explicitly.
 
 The functions do not read or write the DOM or history.

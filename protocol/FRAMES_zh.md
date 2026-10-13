@@ -1,16 +1,10 @@
 # romzo/v1 WebSocket 帧协议
 
-可选客户端 mesh 约定详见 [SDK mesh 契约](../packages/romzo-client/README_zh.md#可选自动-p2p-mesh)。
-mesh 在已声明的 signal 应用频道交换 hello、签名 SDP、generation candidate、
-restart 和尽力发送的 bye；业务消息可走可靠有序 DC。此约定不改变 romzo/v1。
-跨中继／RTC 切换允许乱序和丢失，应用负责序号、ack 和历史恢复；SDP 签名信任
-relay 名册中的公钥，不提供独立于 relay 的身份认证。
-
 English: [FRAMES.md](FRAMES.md)
 
 本文档是 `relay` WebSocket 面的规范，与 HTTP 面的 OpenAPI 文档（`openapi.yaml`）互补。第三方客户端实现应以本文档 + 共享测试向量（`protocol/relay-v1-vectors.json`）为准，不需要阅读服务端源码。
 
-服务端发行版本为 **1.4.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。频道由应用通过 `options.channels` 显式声明；中继没有预置的频道名称。
+服务端发行版本为 **1.5.0**；公共 wire 协议为 **romzo/v1**。HTTP 接口使用 `/api/v1/`，WebSocket 使用 `/ws`，密码学域使用 `romzo/` 前缀；服务端与客户端必须使用同一协议。频道由应用通过 `options.channels` 显式声明；中继没有预置的频道名称。
 
 ## 邀请链接与房间配置
 
@@ -63,7 +57,7 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 服务端 → {"v","kind":"authenticated","id": <16 hex peer id>}
 ```
 
-- `admission` 票据由 `POST /rooms`（房主）、`/rooms/{code}/confirm`、`/admissions`（访客）或 `/restore` 签发，60 秒有效，单次握手即作废。
+- `admission` 票据由 `POST /rooms`（房主）、`/rooms/{code}/confirm`、`/rooms/{code}/admissions`（访客）或 `/restore` 签发，60 秒有效，单次握手即作废。
 - `proof` 用票据 `key` 对应的 Ed25519 私钥对 challenge 对象签名（域分隔串 `romzo/relay-connect/v1`，见向量）。
 - 握手失败一律直接断开，**不返回错误帧**（避免给枚举攻击者反馈）。
 
@@ -119,16 +113,29 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 
 配置 `MEMBER_STATE_FILE` 后，Discovery 声明 `stableMemberOrder: true`。身份由已验证的传输公钥识别，在房间实例中首次成功认证连接时分配 `joinSeq`（1..4096）。申请入房不占号，房主不预留 1 号；离开不回收编号，同一公钥的多个连接共用编号。这个顺序不是游戏座位。
 
-`authenticated` 增加自身 `key` 和可选 `joinSeq`；`join`、`leave`、`receive` 增加对应公钥和可选编号。`peer` 仍是用于定向发送的临时连接 ID。保留 `romzo/v1`、现有帧种类及签名格式，
+**帧字段。** `authenticated` 增加自身 `key` 和可选 `joinSeq`；`join`、`leave`、`receive` 增加对应公钥和可选编号。`peer` 仍是用于定向发送的临时连接 ID。`romzo/v1`、现有帧种类及签名格式均保持不变。
 
-每次成功订阅的 ack 增加 `channel` 和 `value: {members: [{peer, key, joinSeq?}, ...]}`，返回该频道完整在线连接列表，包括自己；按编号及连接 ID 排序。同一公钥的连接分别列出。已有成员 join 通知在快照前发送，后续增量在快照后发送；客户端必须在处理 ack 时同步应用快照，不能放到 Promise 回调里覆盖后续加入事件。重复订阅同样返回快照，不泄露其他频道的成员。服务器快照可以超过客户端控制帧的 16 KiB 上限，但仍受 288 KiB 服务器帧上限约束。
+**快照语义与时序。** 每次成功订阅的 ack 增加 `channel` 和 `value: {members: [{peer, key, joinSeq?}, ...]}`，返回该频道完整在线连接列表（包括自己），按编号及连接 ID 排序；同一公钥的连接分别列出。已有成员 join 通知在快照前发送，后续增量在同一 socket 队列上紧随其后。重复订阅同样返回新快照，不泄露其他频道的成员。
 
-恢复同一签名房间实例时沿用原编号；新实例独立编号。必须保留成员状态文件和原票据密钥。缺失记录时恢复返回 `member_state_unavailable`（409）；落盘失败返回 `member_state_write_failed`（HTTP 503 或 WS 请求/终止错误）。每房间最多登记 4096 个身份，超过后新身份认证返回 `member_capacity`，已有身份可重连。未配置持久编号时，客户端不生成声称全局一致的本地编号。
+**客户端应用规则。** 客户端必须在处理 ack 时同步应用快照，再处理后续帧；放到 Promise 回调里可能覆盖较新的 join。服务器快照可以超过客户端控制帧的 16 KiB 上限，但仍受 288 KiB 服务器帧上限约束。
+
+恢复同一签名房间实例时沿用原编号；新实例独立编号。必须保留成员状态文件和原票据密钥。缺失记录时恢复返回 `member_state_unavailable`（409）；落盘失败返回 `member_state_write_failed`（HTTP 503 或 WS 请求/终止错误）。每房间最多登记 4096 个身份，超过后新身份认证返回 `member_capacity`，已有身份可重连。未配置持久编号时 joinSeq 字段被省略，客户端不生成声称全局一致的本地编号。
 
 公开确定性帧示例见 [member-order-v1-vectors.json](member-order-v1-vectors.json)。
 
+## 可选客户端 mesh 约定
+
+SDK 的可选 `MeshSession` 声明一个 `signal` 应用频道，通过普通的定向发送交换
+带版本号的 hello、签名的 offer/answer、限定于 generation 的 candidate、
+restart 和尽力发送的 bye；业务消息随后可改走可靠有序的 WebRTC DataChannel，
+而不再经过中继。这是客户端约定，不改变 `romzo/v1` 或中继授权。
+跨中继／RTC 切换允许乱序和丢失，应用负责序号、ack 和历史恢复；SDP 签名信任
+relay 名册中的公钥，不提供独立于 relay 的身份认证。
+详见 [SDK mesh 契约](../packages/romzo-client/README_zh.md#可选自动-p2p-mesh)。
+
 ## 持久身份房间
 
-签名 options 的 `identityPolicy: {exclusive:true, ttlMs}` 启用单公钥单连接策略。认证证明验证后，中继原子检查占用；冲突以终端错误 `identity_in_use` 拒绝，不分配 peer 或成员编号。房间满返回 `room_full`，身份表满返回 `member_capacity`。客户端不能把其他错误当作占用后自动换 key。
+签名 options 的 `identityPolicy: {exclusive:true, ttlMs}` 启用单公钥单连接策略。认证证明验证后，中继原子检查占用；冲突以终端错误 `identity_in_use` 拒绝，不分配 peer 或成员编号。房间满返回 `room_full`，身份表满返回 `member_capacity`。客户端不能把无关错误解释为身份占用。
 
 在线 key 保留；离线 key 按 ttlMs 保留，过期后回收。重新分配的编号持续递增，不复用已删除 key 的编号。过期身份恢复返回 `identity_expired`。不带身份策略的房间继续允许同 key 多连接。身份恢复不改变 at-most-once 投递语义，不提供消息回补。
+

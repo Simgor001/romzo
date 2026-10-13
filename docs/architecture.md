@@ -25,11 +25,13 @@ Delivery is at most once.
 Applications own encryption, persistence, sequencing, retries, deduplication and reconnection policy.
 SDK-generated private keys are extractable so an application can export them for recovery; protecting them at rest is up to the application.
 
+`romzo/v1` also defines two optional extensions: stable member order persists a per-key `joinSeq` (1..4096) through `MEMBER_STATE_FILE` so membership order survives recovery into the same room instance, and persistent-identity rooms use signed `identityPolicy: {exclusive, ttlMs}` options to allow one live connection per public key.
+
 ## Boundaries
 
 - Options are opaque canonical JSON, including any JSON root type, subject to a configurable maximum of 4096 UTF-8 bytes.
   Numbers must be safe integers.
-- Creation passwords and optional Turnstile validation protect allocation; they are independent policies.
+- Allocation policy is selected by CREATE_AUTH: anonymous, a creation password, or attestation via Turnstile and/or OAuth, accepted as a signed grant from the verifying provider.
   Guests join through room capabilities and signed tickets.
   Origin checks do not establish user identity.
 - Frame, queue, connection and per-IP ingress limits bound individual resource usage; outbound fanout bandwidth lies outside these limits.
@@ -47,4 +49,5 @@ Shared fixtures verify canonical encoding and cryptographic outputs in Go and Ty
 `openapi.yaml` is the single source of truth for the HTTP surface, with a contract test validating endpoint coverage.
 
 `npm run verify` runs SDK and Go tests, race checks, the publication boundary checks and a real local integration through two SDK clients, including ticket renewal and server restart recovery.
+Mesh-consumer, persistent-identity and mobile-browser suites, protocol vector checks (`generate-vectors --check`), a relay build and release artifact checks complete the pipeline.
 The integration covers local HTTP/WS only; public WSS and multi-instance deployment need separate acceptance tests.

@@ -46,7 +46,7 @@ Origins carry scheme and port, e.g. `https://game.example.com` or `http://127.0.
 | `oauth` | `OAUTH_PROVIDER`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, authorization/token/user-info URLs, `GRANT_KEY` |
 | `turnstile+oauth` | Both sets |
 
-The website's `play.html` creates rooms via Turnstile, so set `CREATE_AUTH=turnstile` and keep the widget site key equal to `TURNSTILE_SITEKEY`. If the widget runs on a different domain from the relay, list it in `TURNSTILE_HOSTNAMES` and allow it in the Cloudflare widget configuration. If you set `TURNSTILE_ACTION`, it must match the widget's action.
+Deploying `play.html` requires `CREATE_AUTH` to include `turnstile` or `oauth`. The SDK embeds the relay-hosted verification page, so the site key lives only on the relay as `TURNSTILE_SITEKEY` and is served to that page. `TURNSTILE_HOSTNAMES` needs only the relay's hostname — it defaults to the `PUBLIC_ORIGIN` hostname — and `TURNSTILE_ACTION` is set on the server, so there is no page-side widget to align with.
 
 The OAuth callback is `PUBLIC_ORIGIN` plus `/api/v1/auth/oauth/callback`. Optional variables are listed in the [environment template](../deploy/.env.example).
 
@@ -79,7 +79,7 @@ npm ci
 npm run build:website
 ```
 
-Copy all of `website/` to the static directory, including the generated `website/sdk/`. For your own relay, change `ORIGIN` in `website/play.html` and the node address in `website/site.js`. The Turnstile site key sits on the `ts-widget` element in `play.html`. Management files live in `website/admin/`.
+Copy all of `website/` to the static directory, including the generated `website/sdk/`. For your own relay, change `ORIGIN` in `website/play.html` and the node address in `website/site.js`. Management files live in `website/admin/`.
 
 Set `TRUSTED_PROXIES` only for proxies you trust, as source IP CIDRs. The relay itself speaks HTTP; the reverse proxy provides public HTTPS. Invite links use the public address, never the container port or `127.0.0.1`.
 

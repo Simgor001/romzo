@@ -16,6 +16,7 @@ submitter.
 | Date | ⟪fill in: submission date⟫ |
 
 Notes for the reviewer: the protocol documentation is public and stable; the
-port is a declared service convention (default listener and default invite
-target when the port is omitted). TLS terminates at the deployment proxy or
-listener; the service itself is plain TCP carrying HTTP/WebSocket.
+port is a declared service convention — the relay's default listener port.
+TLS terminates at the deployment proxy or listener; the service itself is
+plain TCP carrying HTTP/WebSocket. In invite links, an omitted port refers to
+the HTTPS service default port (443), never 9224 (see `protocol/FRAMES.md`).

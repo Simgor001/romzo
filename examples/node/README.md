@@ -27,8 +27,9 @@ in the environment file. Two more settings matter for this demo:
 
 - `PUBLIC_ORIGIN` must be the relay's own origin, e.g.
   `http://127.0.0.1:9224` (loopback HTTP is for development only).
-- For private relays, `CLIENT_ORIGINS` must include the demo's WebSocket origin; public relays may use `*`
-  `https://chat.example.local` (the demo injects it via the `ws` factory).
+- For private relays, `CLIENT_ORIGINS` must include the demo's WebSocket
+  origin `https://chat.example.local` (public relays may use `*`; the demo
+  injects it via the `ws` factory).
 
 The default listen port is 9224; check readiness with
 `curl http://127.0.0.1:9224/healthz`.
@@ -46,7 +47,7 @@ Expected output (abridged):
 ```
 relay: http://127.0.0.1:9224
 room:  ABCD2345EF (channels: chat, state)
-invite: http://localhost:8080/#ABCD2345EF@127.0.0.1:9224
+invite: http://localhost:8080/#ABCD2345EF/127.0.0.1:9224
 [host] <- 1a2b3c4d: {"from":"guest","seq":1}
 [guest] <- 9f8e7d6c: {"from":"host","seq":1}
 ...
@@ -58,4 +59,4 @@ Exit code is 0 on success, 1 on failure, 2 on usage errors.
 The room options declare two channels — `chat` (16 KiB) and `state`
 (256 KiB) — and are otherwise opaque (`{ app: "example" }`). The `ws` package
 is a development dependency used only to inject the `Origin` request header;
-the SDK itself has zero runtime dependencies.
+the SDK's only runtime dependencies are `@noble/curves` and `qr`.

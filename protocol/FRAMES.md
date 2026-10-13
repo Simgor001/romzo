@@ -5,7 +5,7 @@
 This document is the specification of the `relay` WebSocket surface; it complements the OpenAPI document (`openapi.yaml`) for the HTTP surface.
 Third-party client implementations can follow this document and the shared test vectors (`protocol/relay-v1-vectors.json`) alone.
 
-Server release is **1.4.0**; the public wire protocol is **romzo/v1**.
+Server release is **1.5.0**; the public wire protocol is **romzo/v1**.
 HTTP routes use `/api/v1/`, WebSocket uses `/ws`, and cryptographic domains use the `romzo/` prefix.
 Clients and servers must use the same protocol.
 Channels are declared by applications in `options.channels`; the relay has no predefined channel names.
@@ -16,9 +16,9 @@ The standard invite is `https://<client-origin>/#<10-char Crockford room code>@<
 
 - Room codes are uppercase, without separators.
 - Production relays imply HTTPS.
-- An omitted port is the service default port **443**.
-- Only the service default port may be omitted; every other port must be written explicitly.
+- An omitted port means the default HTTPS port **443** (relay behind a reverse proxy); a directly listened relay such as `:9224` must be written explicitly.
 - Local loopback development should always write its port explicitly.
+
 ### LAN invitations
 
 Three forms extend the host position; the room code is unchanged and all forms stay pure fragment data:
@@ -78,7 +78,7 @@ client → {"v","kind":"proof","signature": <Ed25519 signature, 128 hex>}
 server → {"v","kind":"authenticated","id": <16 hex peer id>}
 ```
 
-- The `admission` ticket is issued by `POST /rooms` (host), `/rooms/{code}/confirm`, `/admissions` (guest) or `/restore`; it is valid for 60 seconds and void after a single handshake.
+- The `admission` ticket is issued by `POST /rooms` (host), `/rooms/{code}/confirm`, `/rooms/{code}/admissions` (guest) or `/restore`; it is valid for 60 seconds and void after a single handshake.
 - `proof` signs the challenge object with the Ed25519 private key matching the ticket's `key` (domain-separation string `romzo/relay-connect/v1`, see vectors).
 - Handshake failure always drops the connection with **no error frame** (no feedback for enumeration attackers).
 
@@ -144,9 +144,11 @@ Token refill uses the monotonic component of Go time.
 
 Discovery advertises `stableMemberOrder: true` only when `MEMBER_STATE_FILE` is configured. Within a room instance, a verified transport public key receives one `joinSeq` (1..4096) at its first successful authenticated connection. Allocation/admission requests do not reserve a number; the host is not necessarily number 1. Leaving never recycles numbers; multiple connections of the same public key share the number. This is transport membership order, not a game seat.
 
-`authenticated` adds `key` and, when enabled, `joinSeq`. `join`, `leave` and `receive` add the sender/member `key` and optional `joinSeq`; `peer` remains the ephemeral connection ID used for targeting. Existing frame kinds, signatures and `romzo/v1` stay unchanged.
+**Frame fields.** `authenticated` adds `key` and, when enabled, `joinSeq`. `join`, `leave` and `receive` add the sender/member `key` and optional `joinSeq`; `peer` remains the ephemeral connection ID used for targeting. Existing frame kinds, signatures and `romzo/v1` stay unchanged.
 
-Every successful subscribe ack includes `channel` and `value: {members: [{peer, key, joinSeq?}, ...]}`: a complete list of online connections subscribed to that channel, including the caller. It is sorted by joinSeq then peer, and includes separate connections sharing a key. Existing-member join notifications precede this snapshot; subsequent increments follow it on the same socket queue. Apply the snapshot synchronously when processing the ack, before subsequent frames; applying it later in a promise continuation can erase a newer join. Repeated subscriptions also return a fresh snapshot. No other channel membership is disclosed. Server snapshots may exceed the 16 KiB client-control cap and remain within the 288 KiB server-frame cap.
+**Snapshot semantics and ordering.** Every successful subscribe ack includes `channel` and `value: {members: [{peer, key, joinSeq?}, ...]}`: a complete list of online connections subscribed to that channel, including the caller. It is sorted by joinSeq then peer, and includes separate connections sharing a key. Existing-member join notifications precede this snapshot; subsequent increments follow it on the same socket queue. Repeated subscriptions also return a fresh snapshot. No other channel membership is disclosed.
+
+**Client application rules.** Apply the snapshot synchronously when processing the ack, before subsequent frames; applying it later in a promise continuation can erase a newer join. Server snapshots may exceed the 16 KiB client-control cap and remain within the 288 KiB server-frame cap.
 
 Persisted order survives recovery into the same signed room instance; a new instance never inherits the old order. A restored service must have the original state file and stable ticket keys. Missing records fail restore with `member_state_unavailable` (409); durable-write failures use `member_state_write_failed` (503 on HTTP or request/terminal WS error). A 4096-identity room rejects new authenticated identities with `member_capacity`; existing identities can reconnect. When durable numbering is disabled, joinSeq is omitted; clients must not invent a globally consistent number.
 

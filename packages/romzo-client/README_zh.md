@@ -4,7 +4,7 @@ English: [README.md](README.md)
 
 Romzo 客户端 SDK — 「房间型不透明中继」（room-based opaque WebSocket relay，`romzo/v1` 协议）的独立客户端实现。
 
-使用 Web Crypto 与 WebSocket（HTTPS 浏览器 / Node 22+），缺少原生 Ed25519 时使用 `@noble/curves` 兼容实现。密钥持久化请使用 `exportPrivateKey` 与 `importKeyPair`；兼容密钥是不透明句柄。
+使用 Web Crypto 与 WebSocket（HTTPS 浏览器 / Node 24+），缺少原生 Ed25519 时使用 `@noble/curves` 兼容实现。密钥持久化请使用 `exportPrivateKey` 与 `importKeyPair`；兼容密钥是不透明句柄。
 
 ## 可选邀请二维码
 
@@ -77,15 +77,18 @@ signal 对包装层的事件和名册隐藏，不能经包装层发送、订阅�
 完整封套超过协商的 SCTP 上限时走中继。全中继广播只用一个原生广播帧，
 混合广播按成员分别投递；排队期间原生广播的接收名册变化则拒绝，避免发给新成员。
 
-**发送预算：**默认最多 128 个排队／在途投递项、合计 1 MiB，等待期限 15 秒。
-中继发送与信令共享 32 帧/秒（突发 8 帧）、256 KiB/秒（突发 512 KiB）预算；
-控制消息优先但同样有界。队列满则拒绝，不擅自合并或丢弃业务消息；混合广播
-先预留全部副本容量。DC 高／低水位为 256／64 KiB；大于高水位的消息等缓冲为空。
-可配置 `maxQueuedItems/maxQueuedBytes/queueTimeoutMs`、
-`relayFramesPerSecond/relayFrameBurst/relayBytesPerSecond/relayByteBurst`、
-`bufferedAmountHighWaterMark/bufferedAmountLowWaterMark`。
-单帧超过配置的字节突发容量则拒绝。自定义服务端限额需要对应调低预算；
-预算不包含底层自动 keepalive、订阅和逃生舱发送，不能保证免疫全部服务端限流。
+**发送预算：**默认最多 128 个排队／在途投递项、合计 1 MiB、等待期限 15 秒。
+中继发送与信令共享 32 帧/秒（突发 8 帧）、256 KiB/秒（突发 512 KiB）的令牌
+桶；控制消息优先但同样有界。DC 高／低水位为 256／64 KiB，大于高水位的消息
+等缓冲为空。
+
+- 队列满则拒绝，不擅自合并或丢弃业务消息；混合广播先预留全部副本容量再分发。
+- 可在 mesh 选项中配置 `maxQueuedItems`、`maxQueuedBytes`、`queueTimeoutMs`、
+  `relayFramesPerSecond`、`relayFrameBurst`、`relayBytesPerSecond`、
+  `relayByteBurst`、`bufferedAmountHighWaterMark` 与 `bufferedAmountLowWaterMark`。
+- 单帧超过配置的字节突发容量则拒绝。
+- 服务端使用自定义限额时，需相应调低这些预算；预算不包含底层自动
+  keepalive、订阅和逃生舱发送，不能保证免疫全部服务端限流。
 
 **信令与信任：**版本化 hello 请求每个 peer 只回应一次，回应不再次回应。
 较小的 `(key,peerId)` 唯一发 offer 并分配 generation。offer／answer 使用
@@ -252,8 +255,6 @@ passwordKeyProvider.clear(origin); // 或 clear() 清除全部派生密钥
 不持久化口令或派生密钥。
 持有缓存实例即持有口令闭包；用毕请清除并释放实例，JavaScript 不保证内存擦除。
 
-恢复票据回执会等待 `onRecovery` 持久化回调完成；回调失败时请求以 `recovery_persistence_failed` 拒绝，连接仍可使用，不产生未处理的 Promise rejection。
-
 ## 会话与私钥责任
 
 SDK 默认每 10 秒保活，应用应及时订阅频道；未订阅即 keepalive 会被服务端拒绝。
@@ -283,13 +284,23 @@ SDK 默认每 10 秒保活，应用应及时订阅频道；未订阅即 keepaliv
 
 频道名称由应用定义；未声明时房间没有频道。
 
+恢复票据回执会等待 `onRecovery` 持久化回调完成；回调失败时请求以 `recovery_persistence_failed` 拒绝，连接仍可使用，不产生未处理的 Promise rejection。
+
 ### 稳定成员顺序
 
 Discovery 声明 `stableMemberOrder` 时，`session.joinSeq` 是该身份在当前房间实例中的首次入房编号。`session.members(channel)` 返回不可修改、按编号排序的在线连接列表（`Member`：peer、key、可选 joinSeq）；同公钥多个连接共用编号，在线人数按公钥去重。`session.on("members", (members, {channel}) => ...)` 通知快照和增量变化，包括断线清空、订阅及自动重连后重建。`await session.subscribe(channel)` 返回后可读取完整列表。join/leave/receive 的事件元数据也包含可选 joinSeq。未启用持久编号时显示普通参与者标签，不自行伪造统一顺序。成员编号不等于游戏座位，也不意味着消息可靠送达。
 
+```ts
+await session.subscribe("chat");
+console.log(session.joinSeq, session.members("chat"));
+session.on("members", (_members, {channel}) => {
+  if (channel === "chat") renderMembers(session.members("chat"));
+});
+```
+
 ## 浏览器持久身份
 
-`romzo/storage` 使用应用来源下的 IndexedDB，不会自动存储身份，也不与验证页面共享私钥。`namespace` 区分同一网站上的不同游戏。默认有效期为 30 分钟，创建房间时把相同期限写入签名配置：
+`romzo/storage` 使用应用来源下的 IndexedDB，不会自动存储身份，也不与验证页面共享私钥。身份持久化为 opt-in，在 Node 中导入也是安全的。`namespace` 区分同一网站上的不同游戏。默认有效期为 30 分钟，创建房间时把相同期限写入签名配置：
 
 ```ts
 const options = {

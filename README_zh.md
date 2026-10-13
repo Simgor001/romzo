@@ -8,7 +8,20 @@ English: [README.md](README.md)
 
 ## 组件
 
-1.5.0 新增：容器负载下保持连接活性与监控时间不变性；relay 增加 `-health` 健康探测，镜像内建 HEALTHCHECK，编排器可据此自动回滚。1.4.0 新增：可插拔建房真人校验——`CREATE_AUTH=turnstile`、`oauth` 或组合 `turnstile+oauth`——统一兑换为 relay 签名、一次性、绑定建房公钥的 grant；Turnstile 校验固定 siteverify 的 hostname；内置通用 OAuth2 客户端（GitHub、itch.io、OIDC 提供方）签发的 grant 携带登录名作为配额主体，接入 OAuth 的节点即私服。SDK 自动通过验证弹窗完成 token 兑换与登录回跳。
+1.5.0 新增：
+
+- 容器负载下保持连接活性与监控时间不变性，
+- relay 增加 `-health` 健康探测，镜像内建 HEALTHCHECK，编排器可据此自动回滚。
+
+1.4.0 新增：
+
+- 可插拔建房真人校验——`CREATE_AUTH=turnstile`、`oauth` 或组合 `turnstile+oauth`——统一兑换为 relay 签名、一次性、绑定建房公钥的 grant，
+- Turnstile 校验固定 siteverify 的 hostname，
+- 内置通用 OAuth2 客户端（GitHub、itch.io、OIDC 提供方）签发的 grant 携带登录名作为配额主体，接入 OAuth 的节点即私服；SDK 自动通过验证弹窗完成 token 兑换与登录回跳。
+
+1.3.1 新增：
+
+- 公共节点支持 `CLIENT_ORIGINS=*`，管理访问由 `ADMIN_ORIGINS` 隔离。
 
 | 组件 | 路径 | 说明 |
 | --- | --- | --- |
@@ -53,7 +66,12 @@ await session.subscribe('table');
 
 在本工作区用 `npm run build` 构建 SDK。
 
-邀请格式为 `https://client/#ABCD123XYZ/relay.example.com`：省略端口 = 服务默认端口 443，因此其他端口的中继必须显式写出，如 `/relay.example.com:9224`。口令、私钥与恢复票据不得进入 URL。
+邀请格式为 `https://client/#ABCD123XYZ/relay.example.com`：
+
+- 省略端口 = 服务默认端口 443；其他端口的中继必须显式写出，如 `/relay.example.com:9224`。
+- 口令、私钥与恢复票据不得进入 URL。
+
+局域网对局不使用中继地址，而是直连候选：`#CODE/lan` 在局域网内按房间码发现房间，`#CODE/host1,host2:port` 则列出至多 8 个共享同一端口的内网候选（见 SDK 的 `buildLanInvite`）。
 
 应用消费并清除 fragment，并负责浏览器历史恢复。SDK 只对回环地址放行 http；生产中继源站必须是 HTTPS。
 
@@ -82,7 +100,15 @@ Android 模式运行设备内的浏览器，测试结束后移除临时 `adb rev
 两种模式均连接真实本地 Go 中继，Turnstile 使用测试替身；不代表公网验证码或 WSS 验收。
 调试完成后执行 `adb -s <设备序列号> shell am clear-debug-app` 清理模拟器的调试设置。
 
-verify 依次检查：公共文件边界与可达 Git 历史、SDK 单元测试与类型、Go 测试与竞态测试、共享协议向量、`openapi.yaml`（HTTP 面的唯一信源，契约测试校验端点覆盖）、SDK 构建，以及一次真实本地中继集成。
+verify 依次检查：
+
+- 公共文件边界与可达 Git 历史，
+- SDK 单元测试与类型，
+- Go 测试与竞态测试，
+- 共享协议向量，
+- `openapi.yaml`——HTTP 面的唯一信源，契约测试覆盖每个端点，
+- SDK 构建，
+- 一次真实本地中继集成。
 
 `npm run build:relay` 额外构建 Linux amd64/arm64 与 Windows amd64 二进制、校验和及依赖许可声明，输出到 dist/relay。
 
