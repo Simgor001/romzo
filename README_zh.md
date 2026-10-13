@@ -4,11 +4,11 @@ English: [README.md](README.md)
 
 基于房间（room）的不透明 WebSocket 中继，附带支持移动浏览器的 TypeScript SDK。中继负责房间注册、签名票据（ticket）、频道（channel）成员管理与有界转发；加密、游戏规则、持久化、重连与历史同步由应用负责。
 
-服务端版本：**1.4.0**。SDK：**romzo 0.4.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
+服务端版本：**1.5.0**。SDK：**romzo 0.4.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
 
 ## 组件
 
-1.4.0 新增：可插拔建房真人校验——`CREATE_AUTH=turnstile`、`oauth` 或组合 `turnstile+oauth`——统一兑换为 relay 签名、一次性、绑定建房公钥的 grant；Turnstile 校验固定 siteverify 的 hostname；内置通用 OAuth2 客户端（GitHub、itch.io、OIDC 提供方）签发的 grant 携带登录名作为配额主体，接入 OAuth 的节点即私服。SDK 自动通过验证弹窗完成 token 兑换与登录回跳。
+1.5.0 新增：容器负载下保持连接活性与监控时间不变性；relay 增加 `-health` 健康探测，镜像内建 HEALTHCHECK，编排器可据此自动回滚。1.4.0 新增：可插拔建房真人校验——`CREATE_AUTH=turnstile`、`oauth` 或组合 `turnstile+oauth`——统一兑换为 relay 签名、一次性、绑定建房公钥的 grant；Turnstile 校验固定 siteverify 的 hostname；内置通用 OAuth2 客户端（GitHub、itch.io、OIDC 提供方）签发的 grant 携带登录名作为配额主体，接入 OAuth 的节点即私服。SDK 自动通过验证弹窗完成 token 兑换与登录回跳。
 
 | 组件 | 路径 | 说明 |
 | --- | --- | --- |
