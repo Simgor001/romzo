@@ -19,7 +19,8 @@ const vector = JSON.parse(
 const relayVersion = readFileSync(
   fileURLToPath(new URL("../../../relay/protocol.go", import.meta.url)),
   "utf8",
-).match(/const version = "([^"]+)"/)[1];
+).match(/const version = "([^"]+)"/)?.[1];
+if (!relayVersion) throw new Error("relay version not found in protocol.go");
 
 describe("relay-v1 shared vectors", () => {
   it('generic options retain the frozen v1 canonical hash contract', async () => {
