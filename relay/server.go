@@ -119,7 +119,7 @@ func (s *Server) sweepLocked() {
 		}
 		ttl := 10 * time.Minute
 		if r.EverConnected {
-			ttl = 30 * time.Minute
+			ttl = identityTTL(r)
 		}
 		if (!r.Confirmed && !r.Expires.After(now)) || (r.Confirmed && !active && !r.Active.Add(ttl).After(now)) {
 			record := s.sampleRoomLocked(r)
@@ -245,12 +245,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		doc := map[string]any{"protocol": protocol, "version": version, "origin": s.cfg.Origin, "auth": s.mode.String(), "salt": hex.EncodeToString(s.cfg.Salt), "iterations": 600000, "algorithm": "PBKDF2-HMAC-SHA256", "turnstile": s.cfg.TurnstileSecret != "", "limits": map[string]int{"framesPerSecond": s.cfg.FramesPerSecond, "bytesPerSecond": s.cfg.BytesPerSecond}}
 		if s.cfg.MemberStateFile != "" {
 			doc["stableMemberOrder"] = true
+			doc["persistentIdentity"] = true
+			doc["maxRoomConnections"] = s.cfg.PerRoom
 		}
 		if s.cfg.TurnstileSiteKey != "" {
 			doc["turnstileSiteKey"] = s.cfg.TurnstileSiteKey
 		}
 		if s.cfg.TurnstileSecret != "" && s.cfg.GrantKey != nil {
 			doc["verify"] = api + "verify"
+			doc["turnstilePage"] = api + "auth/turnstile"
 		}
 		if s.cfg.OAuth.configured() {
 			doc["oauthLogin"] = api + "auth/oauth/login"
@@ -314,6 +317,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "GET" && r.URL.Path == wsPath {
 		s.websocket(w, r)
+		return
+	}
+	if r.Method == "GET" && r.URL.Path == api+"auth/turnstile" {
+		s.serveTurnstilePage(w, r)
 		return
 	}
 	if r.Method == "POST" && r.URL.Path == api+"verify" {
@@ -424,6 +431,9 @@ func channelsFromOptions(data json.RawMessage) (map[string]int, error) {
 	if err := decode(data, &root); err != nil {
 		return nil, err
 	}
+	if _, err := readIdentityPolicy(data); err != nil {
+		return nil, err
+	}
 	object, ok := root.(map[string]any)
 	if !ok {
 		return map[string]int{}, nil
@@ -477,6 +487,10 @@ func (s *Server) allocate(w http.ResponseWriter, r *http.Request) {
 	q := body.Request
 	if q.Protocol != protocol || q.Origin != s.cfg.Origin || !validHex(q.RequestID, 16) || !validHex(q.Host, 32) || !validHex(q.Transport, 32) || !validHex(q.Capability, 16) || len(q.Options) > s.cfg.OptionsBytes || !validOptions(q.Options) || hash("romzo/lobby-options/v1", q.Options) != q.ConfigHash {
 		failure(w, 400, "invalid_allocation")
+		return
+	}
+	if policy, _ := readIdentityPolicy(q.Options); policy != nil && s.cfg.MemberStateFile == "" {
+		failure(w, 400, "persistent_identity_unavailable")
 		return
 	}
 	channels, err := channelsFromOptions(q.Options)
@@ -643,8 +657,9 @@ func (s *Server) confirm(w http.ResponseWriter, r *http.Request, code string) {
 	room.Signed = d
 	room.Confirmed = true
 	lease := 10 * time.Minute
-	if room.EverConnected {
-		lease = 30 * time.Minute
+	policy, _ := readIdentityPolicy(room.Signed.Descriptor.Options)
+	if room.EverConnected || policy != nil {
+		lease = identityTTL(room)
 	}
 	remaining := room.Active.Add(lease).Sub(s.now())
 	if remaining <= 0 {
@@ -656,7 +671,13 @@ func (s *Server) confirm(w http.ResponseWriter, r *http.Request, code string) {
 		failure(w, 503, "member_state_write_failed")
 		return
 	}
-	result(w, 200, map[string]any{"admission": s.ticket(room, d.Descriptor.Transport, "creator", 60*time.Second), "recovery": s.ticket(room, d.Descriptor.Transport, "recovery", remaining)})
+	if policy != nil {
+		if _, err := s.registerMemberLocked(room, d.Descriptor.Transport); err != nil {
+			failure(w, 503, "member_state_write_failed")
+			return
+		}
+	}
+	result(w, 200, map[string]any{"admission": s.ticket(room, d.Descriptor.Transport, "creator", 60*time.Second), "recovery": s.ticket(room, d.Descriptor.Transport, "recovery", remaining+recoveryTTL(room)-identityTTL(room))})
 }
 func (s *Server) admit(w http.ResponseWriter, r *http.Request, code string) {
 	var b struct {
@@ -676,6 +697,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request, code string) {
 		failure(w, 404, "room_not_found")
 		return
 	}
+	s.pruneIdentitiesLocked(room)
 	result(w, 200, map[string]any{"admission": s.ticket(room, b.Key, "guest", 60*time.Second)})
 }
 func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
@@ -707,6 +729,13 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
 			return
 		}
 	}
+	if policy, _ := readIdentityPolicy(d.Options); policy != nil {
+		record := s.memberRecords[d.Instance]
+		if record == nil || record.KeyExpires[t.Key] <= s.now().UnixMilli() {
+			failure(w, 410, "identity_expired")
+			return
+		}
+	}
 	room := s.rooms[code]
 	if room != nil && hash("romzo/relay-descriptor/v1", room.Signed) != t.Digest {
 		failure(w, 409, "room_identity_conflict")
@@ -719,7 +748,11 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request, code string) {
 		}
 		// Recovery reinstates the existing lease. Only authenticated subscription
 		// and keepalive may renew it; HTTP replay cannot mint extra lifetime.
-		room = &Room{Signed: b.Signed, Confirmed: true, EverConnected: true, Active: time.UnixMilli(t.Expires).Add(-30 * time.Minute), Peers: map[string]*Peer{}, Channels: channels}
+		deadline := t.Expires
+		if policy, _ := readIdentityPolicy(d.Options); policy != nil {
+			deadline = s.memberRecords[d.Instance].Expires
+		}
+		room = &Room{Signed: b.Signed, Confirmed: true, EverConnected: true, Active: time.UnixMilli(deadline).Add(-identityTTL(&Room{Signed: b.Signed})), Peers: map[string]*Peer{}, Channels: channels}
 		if s.attachRoomRecordLocked(room) == nil {
 			failure(w, 503, "history_capacity")
 			return

@@ -1,7 +1,7 @@
 // Runs inside the isolated Docker network namespace; contains no Docker socket.
 import { writeFile } from 'node:fs/promises';
 import WebSocket from 'ws';
-import { createRoom, joinRoom, MeshSession } from './sdk/index.js';
+import { createRoom, joinRoom, MeshSession, RelaySession } from './sdk/index.js';
 
 const origin = 'http://127.0.0.1:9224', ws = 'ws://127.0.0.1:9224/ws';
 const clientOrigin = 'https://load.example';
@@ -48,7 +48,7 @@ async function connect(material, room, reconnect = true) {
 }
 async function addRooms(n) {
   for (let room = clients.length / 8; room < n; room++) {
-    const host = await createRoom(origin, { channels: [{ name: 'data', maxFrameBytes: 65536 }, { name: 'signal', maxFrameBytes: 16384 }] }, http);
+    const host = await createRoom(origin, { identityPolicy: {exclusive:true,ttlMs:1800000}, channels: [{ name: 'data', maxFrameBytes: 65536 }, { name: 'signal', maxFrameBytes: 16384 }] }, http);
     await connect(host, room); await pause(150);
     for (let i = 1; i < 8; i++) { await connect(await joinRoom(origin, host.descriptor.code, http), room, smoke || room !== 0 || i !== 7); await pause(150); }
   }
@@ -126,6 +126,19 @@ try {
   report.restarting = false;
   checks.push({ name: 'container-restart-recovery', pass: remaining.every((c,i) => c.mesh.joinSeq === numbers[i]), recoveredClients: remaining.length, memberNumbers: remaining.map(c => c.mesh.joinSeq) });
   await traffic('post-restart', remaining, 10, smoke ? 1 : 10, 512);
+  const isolated = await createRoom(origin, {identityPolicy:{exclusive:true,ttlMs:20000}}, http);
+  const socketOptions = {keepalive:false,webSocketFactory:url=>new WebSocket(url,{headers:{Origin:clientOrigin}})};
+  const owner = await RelaySession.connect(ws,isolated.admission,isolated.transport,socketOptions);
+  let occupied=false,full=false;
+  try {await RelaySession.connect(ws,isolated.admission,isolated.transport,socketOptions);} catch(e) {occupied=e.code==='identity_in_use';}
+  const count=(await fetch(origin+'/.well-known/romzo').then(r=>r.json())).maxRoomConnections*2;
+  for(let i=1;i<count;i++) {const guest=await joinRoom(origin,isolated.descriptor.code,http);const peer=await RelaySession.connect(ws,guest.admission,guest.transport,socketOptions);peer.close();await pause(150);}
+  const extra=await joinRoom(origin,isolated.descriptor.code,http);
+  try {await RelaySession.connect(ws,extra.admission,extra.transport,socketOptions);} catch(e) {full=e.code==='member_capacity';}
+  await pause(20500);
+  const reclaimed=await RelaySession.connect(ws,extra.admission,extra.transport,socketOptions);
+  checks.push({name:'identity-occupancy-capacity-expiry',pass:occupied&&full&&reclaimed.joinSeq>count&&owner.joinSeq===1,capacity:count,reclaimedNumber:reclaimed.joinSeq});
+  reclaimed.close();owner.close();
   report.healthFailures = healthFailures;
   report.pass = phases.every(p => p.pass) && checks.every(c => c.pass) && !healthFailures;
 } catch (e) { report.pass = false; report.error = e.stack; milestone('worker-failure', { error: e.message }); }

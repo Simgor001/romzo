@@ -314,3 +314,43 @@ session.on("members", (_members, {channel}) => {
   if (channel === "chat") renderMembers(session.members("chat"));
 });
 ```
+
+## Browser identity persistence
+
+`romzo/storage` stores identities in the application's IndexedDB origin, independently of the verification iframe. It is opt-in and safe to import in Node. `namespace` separates games hosted at the same origin. The default TTL is 30 minutes; declare the room policy when creating it:
+
+```ts
+const options = {
+  identityPolicy: { exclusive: true, ttlMs: 30 * 60 * 1000 },
+  channels: [{ name: "chat", maxFrameBytes: 16384 }, { name: "signal", maxFrameBytes: 16384 }],
+};
+```
+
+`openIdentityStore({ namespace, identityTtlMs? })` exposes `list/get/latest/save/select/remove/track/cleanup/close`. Each identity contains its room binding, local label, keys, signed descriptor, recovery ticket, and `expiresAt`. There is no last-used timestamp. Reads and writes remove expired records. Keepalive renews connected identities; abrupt closure leaves the last successfully saved deadline. Clearing website data removes the identity.
+
+```ts
+import { MeshSession } from "romzo";
+import { openIdentityStore, connectPersistentRoom } from "romzo/storage";
+
+const store = await openIdentityStore({ namespace: "my-game" });
+const active = await connectPersistentRoom(store, origin, code,
+  (admission, identity, signedDescriptor, identityOptions) =>
+    MeshSession.connect(origin.replace(/^http/, "ws") + "/ws", admission, identity,
+      { ...identityOptions, autoReconnect: { signedDescriptor } }, { signedDescriptor }));
+await active.session.subscribe("chat");
+await active.session.keepalive();
+await active.leave(); // Explicit leave deletes only this identity and its recovery materials.
+store.close();
+```
+
+Joining clients follow the signed room TTL. A new tab probes the latest successful identity and allocates another key only on `identity_in_use`. Restoring a tab retries occupancy for up to 10 seconds; the application can then offer retry or `{newIdentity:true}`. Copied tab labels still require the relay occupancy check. Other errors propagate without replacing the key.
+
+After creating a room, save its `host/transport/signedDescriptor/recovery` using `store.save`. Pass `store.track(record).onRecovery` into session options, then call `bind(session)` and `select(record)` after connecting successfully. `track.remove()` stops pending updates and deletes the record; late callbacks cannot recreate it. `flush()` waits for pending writes and rejects on failure. Failed automatic recovery persistence emits `error` with `recovery_persistence_failed`.
+
+The relay needs `MEMBER_STATE_FILE` and discovery must advertise `persistentIdentity`. Exclusive rooms retain at most twice the connection limit in their public-key table; expired offline entries are reclaimed and member numbers are never reused. Persistence restores identity and transport, not application message history.
+
+## Embedded creation verification
+
+Turnstile runs on the relay-hosted `/api/v1/auth/turnstile` page. Browser `createRoom` opens a dismissible inline dialog by default. Use `verification: { mount, signal, timeoutMs }` to mount it in an application-owned window, or `requestEmbeddedGrant` to obtain a grant separately. Messages are bound to the iframe source, relay origin, request ID, and creator public key. Cancellation and timeout clean up the iframe and listeners.
+
+Only the verification page's relay hostname needs Turnstile approval. Applications must still satisfy `CLIENT_ORIGINS`, and an application CSP must allow the relay origin in `frame-src`. OAuth keeps its existing flow. Node callers must supply a grant explicitly.

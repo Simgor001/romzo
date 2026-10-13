@@ -153,3 +153,15 @@ npm run test:docker-load
 ```
 
 `verify` 跑 SDK、Go／race、真实 HTTP／WS 和浏览器集成。打流报告在 `test-results/docker-load/`。本地全过也不等于部署完成——域名、证书、验证组件仍要按第 4 节查一遍。
+
+## 持久身份与验证窗口
+
+Play 使用签名房间配置 `identityPolicy: {exclusive:true, ttlMs:1800000}`。保持 `MEMBER_STATE_FILE` 指向可写的持久目录，并随数据备份该文件；成员编号和离线身份期限会在中继重启后恢复。人数上限由 `MAX_ROOM_CONNECTIONS` 控制，每个独占房间保留最多两倍上限的公钥记录。表满会拒绝新身份；不会删除有效离线身份腾位置，也不会重用成员编号。
+
+Turnstile 配置中的域名应是验证页面所在的中继域名。SDK 从发现接口取得 `/api/v1/auth/turnstile`，游戏在弹层 iframe 中加载它。生产不需要把 `127.0.0.1` 或每个接入游戏域名加入 Turnstile 白名单。本地测试使用独立测试配置。
+
+`CLIENT_ORIGINS` 同时控制 HTTP、WebSocket 和验证页面的嵌入来源。公共服务允许任意 HTTP(S) 网页接入时可设为 `*`；限制接入时填写精确来源，包括协议和端口。域名限制不证明项目开源。验证窗口使用服务端 `TURNSTILE_ACTION`，与验证检查保持一致。
+
+Nginx 的 `/api/v1/` 代理已覆盖验证页面。不要给这个页面附加禁止跨来源嵌入的 `X-Frame-Options`；若代理统一设置 CSP，应保留中继返回的 `frame-ancestors` 和 Turnstile 脚本／iframe 许可。游戏自己的 CSP 需要允许 `frame-src` 加载中继。
+
+更新中继与网站产物后，检查发现接口包含 `persistentIdentity`、`maxRoomConnections` 和 `turnstilePage`。浏览器创建房间、刷新后编号不变、新标签获得独立编号、退出后身份清除，是部署后应实际检查的操作。

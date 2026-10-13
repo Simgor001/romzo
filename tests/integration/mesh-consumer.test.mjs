@@ -20,6 +20,8 @@ test('published SDK surfaces load without RTC and typecheck without DOM', () => 
     const consumer = `import { attachMesh, MeshSession, type MeshOptions, type MeshPeerConnection, type MeshRtcConfiguration, type MeshDataChannel } from "romzo/mesh";
 import { RelaySession, type Identity, type RoomBinding, type SignedDescriptor } from "romzo";
 import { renderInviteQr, readInviteQr, scanInviteCamera, type QrVideo } from "romzo/qr";
+import { openIdentityStore, type RoomIdentity } from "romzo/storage";
+void openIdentityStore;
 declare const relay: RelaySession, identity: Identity, signedDescriptor: SignedDescriptor;
 declare const factory: (config: MeshRtcConfiguration) => MeshPeerConnection;
 const options: MeshOptions = { signedDescriptor, rtcPeerConnectionFactory: factory, rtcConfig: {iceServers:[{urls:"stun:example.test"}]} };
@@ -44,6 +46,7 @@ void scanInviteCamera(document.createElement("video"));
 delete globalThis.RTCPeerConnection;
 const root=await import('romzo'), mesh=await import('romzo/mesh');
 const qr=await import('romzo/qr');
+const storage=await import('romzo/storage'); assert.equal(typeof storage.openIdentityStore,'function'); await assert.rejects(()=>storage.openIdentityStore({namespace:'test'}),/identity_storage_unavailable/);
 assert.equal(typeof root.renderInviteQr,'undefined');
 assert.ok(qr.renderInviteQr('https://romzo.net/play.html#ABCD123XYZ/romzo.net').includes('<svg'));
 assert.equal(root.MeshSession,mesh.MeshSession); assert.equal(root.attachMesh,mesh.attachMesh);

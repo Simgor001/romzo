@@ -14,11 +14,12 @@ const memberStateLimit = 32 * 1024 * 1024
 
 // Only public identity/order metadata is stored. Connection IDs are ephemeral.
 type memberRecord struct {
-	Instance string         `json:"instance"`
-	Digest   string         `json:"digest"`
-	Members  map[string]int `json:"members"`
-	Next     int            `json:"next"`
-	Expires  int64          `json:"expires"`
+	Instance   string           `json:"instance"`
+	Digest     string           `json:"digest"`
+	Members    map[string]int   `json:"members"`
+	Next       int              `json:"next"`
+	Expires    int64            `json:"expires"`
+	KeyExpires map[string]int64 `json:"keyExpires,omitempty"`
 }
 type memberFile struct {
 	Version int                      `json:"version"`
@@ -48,8 +49,18 @@ func (s *Server) loadMembers() error {
 		return errors.New("invalid member state")
 	}
 	for instance, r := range state.Records {
-		if r == nil || instance != r.Instance || !validHex(instance, 16) || !validHex(r.Digest, 32) || r.Members == nil || len(r.Members) > memberLimit || r.Next != len(r.Members)+1 || r.Expires <= 0 {
+		if r == nil || instance != r.Instance || !validHex(instance, 16) || !validHex(r.Digest, 32) || r.Members == nil || len(r.Members) > memberLimit || r.Next < len(r.Members)+1 || r.Next > 9007199254740991 || r.Expires <= 0 {
 			return errors.New("invalid member state")
+		}
+		if r.KeyExpires != nil {
+			if len(r.KeyExpires) != len(r.Members) {
+				return errors.New("invalid member state")
+			}
+			for key, expiry := range r.KeyExpires {
+				if r.Members[key] == 0 || expiry <= 0 {
+					return errors.New("invalid member state")
+				}
+			}
 		}
 		seen := map[int]bool{}
 		for key, seq := range r.Members {
@@ -130,7 +141,7 @@ func (s *Server) prepareMembersLocked(room *Room, expires int64) error {
 	r := s.memberRecords[d.Instance]
 	created := r == nil
 	if created {
-		r = &memberRecord{d.Instance, hash("romzo/relay-descriptor/v1", room.Signed), map[string]int{}, 1, expires}
+		r = &memberRecord{Instance: d.Instance, Digest: hash("romzo/relay-descriptor/v1", room.Signed), Members: map[string]int{}, Next: 1, Expires: expires}
 		s.memberRecords[d.Instance] = r
 	}
 	if r.Digest != hash("romzo/relay-descriptor/v1", room.Signed) {
@@ -163,18 +174,41 @@ func (s *Server) registerMemberLocked(room *Room, key string) (int, error) {
 	if r == nil || r.Digest != hash("romzo/relay-descriptor/v1", room.Signed) {
 		return 0, errors.New("member state unavailable")
 	}
+	s.pruneIdentitiesLocked(room)
+	policy, _ := readIdentityPolicy(room.Signed.Descriptor.Options)
 	if seq := r.Members[key]; seq != 0 {
+		if policy != nil {
+			if err := s.touchIdentityLocked(room, key); err != nil {
+				return 0, err
+			}
+		}
 		return seq, nil
 	}
-	if len(r.Members) >= memberLimit {
+	limit := memberLimit
+	if policy != nil {
+		limit = 2 * s.cfg.PerRoom
+	}
+	if len(r.Members) >= limit || r.Next >= 9007199254740991 {
 		return 0, errors.New("member capacity")
 	}
+	oldRoomExpiry := r.Expires
 	seq := r.Next
 	r.Members[key] = seq
 	r.Next++
+	if policy != nil {
+		if r.KeyExpires == nil {
+			r.KeyExpires = map[string]int64{}
+		}
+		r.KeyExpires[key] = s.now().Add(identityTTL(room)).UnixMilli()
+		if r.KeyExpires[key] > r.Expires {
+			r.Expires = r.KeyExpires[key]
+		}
+	}
 	if err := s.saveMembersLocked(); err != nil {
 		delete(r.Members, key)
+		delete(r.KeyExpires, key)
 		r.Next--
+		r.Expires = oldRoomExpiry
 		return 0, err
 	}
 	return seq, nil

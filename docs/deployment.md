@@ -153,3 +153,15 @@ npm run test:docker-load
 ```
 
 `verify` covers the SDK, Go/race, real HTTP/WS and browser integration. Load-test reports land in `test-results/docker-load/`. Passing locally does not finish the deployment — still check the domain, certificate and verification widget as in section 4.
+
+## Persistent identities and verification UI
+
+Play declares `identityPolicy: {exclusive:true, ttlMs:1800000}`. Keep `MEMBER_STATE_FILE` on a writable persistent volume and include it in backups. Member numbers and offline identity deadlines survive relay restarts. `MAX_ROOM_CONNECTIONS` sets the online limit; each exclusive room retains at most twice that many public keys. A full identity table rejects new identities rather than evicting valid entries or reusing member numbers.
+
+Turnstile hostname approval applies to the relay-hosted verification page. Discovery publishes `/api/v1/auth/turnstile`; SDK clients embed it in an inline dialog. Production does not need localhost, `127.0.0.1`, or each game's hostname on its Turnstile allowlist. Use separate local test configuration.
+
+`CLIENT_ORIGINS` controls HTTP, WebSocket, and verification embedding origins. Use `*` for a public service accepting arbitrary HTTP(S) sites, or exact origins including scheme and port to restrict access. This is not an open-source eligibility check. The widget uses the server's `TURNSTILE_ACTION`, matching verification validation.
+
+The existing Nginx `/api/v1/` proxy covers the verification page. Do not attach a cross-origin-blocking `X-Frame-Options` header to it; preserve its `frame-ancestors` and Turnstile CSP permissions when adding proxy-level headers. Application CSP must allow the relay in `frame-src`.
+
+After updating relay and website artifacts, check discovery for `persistentIdentity`, `maxRoomConnections`, and `turnstilePage`. Verify creation, unchanged numbering after refresh, distinct users in new tabs, and identity removal on explicit leave in a real browser.

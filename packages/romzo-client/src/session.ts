@@ -200,7 +200,7 @@ export class RelaySession {
   private readMember(value: unknown): Member {
     const m=value as Member;
     if (!m || typeof m.peer!=="string" || !m.peer || typeof m.key!=="string" || !m.key ||
-        (m.joinSeq!==undefined && (!Number.isSafeInteger(m.joinSeq) || m.joinSeq<1 || m.joinSeq>4096)))
+        (m.joinSeq!==undefined && (!Number.isSafeInteger(m.joinSeq) || m.joinSeq<1)))
       throw new Error("invalid_member_metadata");
     return {peer:m.peer,key:m.key,...(m.joinSeq===undefined?{}:{joinSeq:m.joinSeq})};
   }
@@ -585,7 +585,7 @@ export class RelaySession {
     if (this.options.keepalive === false || this.closed) return;
     this.stopKeepalive();
     this.keepaliveTimer = setInterval(() => {
-      void this.keepalive().catch(() => {});
+      void this.keepalive().catch(error => { if (error instanceof RelaySessionError && error.code === "recovery_persistence_failed") this.emit("error",error.code,{}); });
     }, this.keepaliveIntervalMs);
   }
 

@@ -150,8 +150,23 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 	p := &Peer{id: randomHex(16), key: t.Ticket.Key, conn: c, queue: make(chan []byte, 128), channels: map[string]bool{}, room: room, cancel: cancel, lastSeen: s.now(), rateAt: s.now(), frameTokens: 128, byteTokens: float64(s.cfg.BytesPerSecond * 2)}
 	s.mu.Lock()
 	s.sweepLocked()
-	if s.rooms[t.Ticket.Code] != room || len(room.Peers) >= s.cfg.PerRoom {
+	if s.rooms[t.Ticket.Code] != room {
 		s.mu.Unlock()
+		return
+	}
+	policy, _ := readIdentityPolicy(room.Signed.Descriptor.Options)
+	if policy != nil {
+		for _, other := range room.Peers {
+			if other.key == p.key {
+				s.mu.Unlock()
+				_ = c.Write(authCtx, websocket.MessageText, wire(map[string]any{"v": protocol, "kind": "error", "error": "identity_in_use"}))
+				return
+			}
+		}
+	}
+	if len(room.Peers) >= s.cfg.PerRoom {
+		s.mu.Unlock()
+		_ = c.Write(authCtx, websocket.MessageText, wire(map[string]any{"v": protocol, "kind": "error", "error": "room_full"}))
 		return
 	}
 	seq, err := s.registerMemberLocked(room, p.key)
@@ -190,6 +205,12 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		}
 		s.sampleRoomLocked(room)
 		delete(room.Peers, p.id)
+		if policy != nil {
+			room.Active = s.now()
+		}
+		if err := s.touchIdentityLocked(room, p.key); err != nil {
+			s.closeReasons["identity_persistence_failed"]++
+		}
 		s.sampleRoomLocked(room)
 		for _, other := range room.Peers {
 			for channel := range p.channels {
@@ -329,11 +350,14 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 			}
 			room.Active = now
 			p.lastSeen = now
-			if err := s.prepareMembersLocked(room, now.Add(30*time.Minute).UnixMilli()); err != nil {
+			if err := s.touchIdentityLocked(room, p.key); err != nil {
+				response["kind"] = "error"
+				response["error"] = "member_state_write_failed"
+			} else if err := s.prepareMembersLocked(room, now.Add(identityTTL(room)).UnixMilli()); err != nil {
 				response["kind"] = "error"
 				response["error"] = "member_state_write_failed"
 			} else {
-				response["recovery"] = s.ticket(room, p.key, "recovery", 30*time.Minute)
+				response["recovery"] = s.ticket(room, p.key, "recovery", recoveryTTL(room))
 			}
 		default:
 			closeReason = "unknown_frame_kind"

@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 const result = await build({
   entryPoints: {
     romzo: fileURLToPath(new URL('../packages/romzo-client/src/index.ts', import.meta.url)),
+    storage: fileURLToPath(new URL('../packages/romzo-client/src/storage.ts', import.meta.url)),
     qr: fileURLToPath(new URL('../packages/romzo-client/src/qr.ts', import.meta.url)),
   },
   outdir: fileURLToPath(new URL('../website/sdk/', import.meta.url)),

@@ -1,7 +1,7 @@
 {
   "name": "romzo",
   "version": "0.4.0",
-  "description": "Romzo — client SDK for a room-based opaque WebSocket relay (romzo/v1). Web Crypto with an Ed25519 compatibility fallback.",
+  "description": "Romzo \u2014 client SDK for a room-based opaque WebSocket relay (romzo/v1). Web Crypto with an Ed25519 compatibility fallback.",
   "type": "module",
   "exports": {
     "./qr": {
@@ -35,6 +35,10 @@
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
+    },
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "import": "./dist/storage.js"
     }
   },
   "files": [

@@ -286,3 +286,44 @@ SDK 默认每 10 秒保活，应用应及时订阅频道；未订阅即 keepaliv
 ### 稳定成员顺序
 
 Discovery 声明 `stableMemberOrder` 时，`session.joinSeq` 是该身份在当前房间实例中的首次入房编号。`session.members(channel)` 返回不可修改、按编号排序的在线连接列表（`Member`：peer、key、可选 joinSeq）；同公钥多个连接共用编号，在线人数按公钥去重。`session.on("members", (members, {channel}) => ...)` 通知快照和增量变化，包括断线清空、订阅及自动重连后重建。`await session.subscribe(channel)` 返回后可读取完整列表。join/leave/receive 的事件元数据也包含可选 joinSeq。未启用持久编号时显示普通参与者标签，不自行伪造统一顺序。成员编号不等于游戏座位，也不意味着消息可靠送达。
+
+## 浏览器持久身份
+
+`romzo/storage` 使用应用来源下的 IndexedDB，不会自动存储身份，也不与验证页面共享私钥。`namespace` 区分同一网站上的不同游戏。默认有效期为 30 分钟，创建房间时把相同期限写入签名配置：
+
+```ts
+const options = {
+  identityPolicy: { exclusive: true, ttlMs: 30 * 60 * 1000 },
+  channels: [{ name: "chat", maxFrameBytes: 16384 }, { name: "signal", maxFrameBytes: 16384 }],
+};
+```
+
+`openIdentityStore({ namespace, identityTtlMs? })` 返回具有 `list/get/latest/save/select/remove/track/cleanup/close` 的存储对象。记录保存房间绑定、身份标签、密钥、签名描述符、恢复票据及一个 `expiresAt`；没有最后使用时间字段。读写时清理过期记录。有效连接通过保活续期；异常关页使用最后成功保存的期限。浏览器删除网站数据后身份无法恢复。
+
+```ts
+import { MeshSession } from "romzo";
+import { openIdentityStore, connectPersistentRoom } from "romzo/storage";
+
+const store = await openIdentityStore({ namespace: "my-game" });
+const active = await connectPersistentRoom(store, origin, code,
+  (admission, identity, signedDescriptor, identityOptions) =>
+    MeshSession.connect(origin.replace(/^http/, "ws") + "/ws", admission, identity,
+      { ...identityOptions, autoReconnect: { signedDescriptor } }, { signedDescriptor }));
+await active.session.subscribe("chat");
+await active.session.keepalive();
+// 手动退出删除当前身份和恢复资料。
+await active.leave();
+store.close();
+```
+
+加入者遵循房间签名配置的期限。新标签尝试最近成功连接的身份，只有明确返回 `identity_in_use` 才分配新密钥。本标签恢复遇到占用会重试最多 10 秒，之后由应用提供重试或 `{newIdentity:true}` 的入口。标签页标识不证明身份在线；复制标签也会经过中继检查。其他错误直接返回，不自动换身份。
+
+房主创建后用 `store.save` 保存 `host/transport/signedDescriptor/recovery`，通过 `store.track(record).onRecovery` 接入会话选项；连接成功后调用 `bind(session)` 和 `select(record)`。`track.remove()` 会停止写入并删除记录，迟到回调不会复活身份。`flush()` 等待已排队的保存，保存失败会拒绝。自动保活保存失败也会发出 `error`，错误码为 `recovery_persistence_failed`。
+
+中继需要配置 `MEMBER_STATE_FILE`，发现接口须声明 `persistentIdentity`。独占房间的公钥表最多保留两倍连接人数上限，清理过期离线身份后才分配新项；成员编号不会重用。SDK 不保存业务消息，恢复连接不等于恢复游戏历史。
+
+## 内嵌建房验证
+
+Turnstile 建房由中继的 `/api/v1/auth/turnstile` 页面完成。默认 `createRoom` 在页面内打开可取消弹层；也可以传入 `verification: { mount, signal, timeoutMs }` 挂载到自己的窗口。`requestEmbeddedGrant` 提供单独获取 grant 的接口。SDK 校验 iframe 来源、窗口和请求标识，创建凭据绑定房主公钥；取消或超时会清理窗口和监听。
+
+验证域名是中继域名，因此游戏网页不需要登记到 Turnstile 域名白名单。游戏仍需符合中继的 `CLIENT_ORIGINS`；设置了 CSP 的游戏页面应允许 `frame-src` 加载中继来源。OAuth 使用原有流程。Node 调用者仍需显式提供 grant。

@@ -126,3 +126,9 @@ descriptor 的 `options` 是不透明 canonical JSON，允许任何 JSON 根类�
 恢复同一签名房间实例时沿用原编号；新实例独立编号。必须保留成员状态文件和原票据密钥。缺失记录时恢复返回 `member_state_unavailable`（409）；落盘失败返回 `member_state_write_failed`（HTTP 503 或 WS 请求/终止错误）。每房间最多登记 4096 个身份，超过后新身份认证返回 `member_capacity`，已有身份可重连。未配置持久编号时，客户端不生成声称全局一致的本地编号。
 
 公开确定性帧示例见 [member-order-v1-vectors.json](member-order-v1-vectors.json)。
+
+## 持久身份房间
+
+签名 options 的 `identityPolicy: {exclusive:true, ttlMs}` 启用单公钥单连接策略。认证证明验证后，中继原子检查占用；冲突以终端错误 `identity_in_use` 拒绝，不分配 peer 或成员编号。房间满返回 `room_full`，身份表满返回 `member_capacity`。客户端不能把其他错误当作占用后自动换 key。
+
+在线 key 保留；离线 key 按 ttlMs 保留，过期后回收。重新分配的编号持续递增，不复用已删除 key 的编号。过期身份恢复返回 `identity_expired`。不带身份策略的房间继续允许同 key 多连接。身份恢复不改变 at-most-once 投递语义，不提供消息回补。

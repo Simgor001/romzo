@@ -23,3 +23,6 @@
 
 !authz.go
 !members.go
+
+!identity.go
+!turnstile_page.go

@@ -78,6 +78,9 @@ export interface Member {
 }
 
 export interface Discovery {
+ persistentIdentity?: boolean;
+ maxRoomConnections?: number;
+ turnstilePage?: string;
   /** Durable, identity-based room member order is enabled. */
   stableMemberOrder?: boolean;
   protocol: string;

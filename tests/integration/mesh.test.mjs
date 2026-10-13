@@ -225,7 +225,7 @@ test('mesh: real RTC, mixed routing, fallback, shared-key peers, reconnect, exam
     await expect(host.locator('#log .is-peer').filter({ hasText: 'third participant' }).locator('.play-message-meta')).toContainText('参与者 3');
     // Rooms without the current mesh declaration must fail explicitly.
     const oldCode = await host.evaluate(async origin => {
-      const sdk = await import('/sdk.js'); const room = await sdk.createRoom(origin, { channels: [{ name: 'lobby', maxFrameBytes: 16384 }] });
+      const sdk = await import('/sdk.js'); const room = await sdk.createRoom(origin, { identityPolicy:{exclusive:true,ttlMs:1800000}, channels: [{ name: 'lobby', maxFrameBytes: 16384 }] });
       return room.descriptor.code;
     }, origin);
     const oldGuest = await ui.newPage(); await oldGuest.goto(`${app}/play.html#${oldCode}/127.0.0.1:${port}`);

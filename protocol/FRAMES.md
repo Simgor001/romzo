@@ -163,3 +163,9 @@ Across relay/RTC switches, messages may be reordered or lost; applications own
 sequencing, acknowledgments and history recovery. SDP signatures trust roster
 keys and do not authenticate identities independently of the relay.
 See [SDK mesh contract](../packages/romzo-client/README.md#optional-automatic-p2p-mesh).
+
+## Persistent-identity rooms
+
+Signed options `identityPolicy: {exclusive:true, ttlMs}` enable one live connection per public key. After proof verification the relay checks occupancy atomically. Conflicts receive terminal `identity_in_use` without allocating a peer or member number. Online capacity returns `room_full`; the retained identity table returns `member_capacity`. Clients must not interpret unrelated errors as identity occupancy.
+
+Online keys remain retained. Offline keys expire after ttlMs; new member numbers keep increasing and never reuse removed identities' numbers. Expired identity recovery returns `identity_expired`. Rooms without this policy still allow shared-key connections. Identity recovery does not change at-most-once delivery or replay missed messages.

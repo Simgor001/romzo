@@ -21,7 +21,7 @@ import {
   RelayHttpError,
   type HttpOptions,
 } from "./http.js";
-import { attestationMode, requestGrant } from "./attest.js";
+import { attestationMode, requestGrant, type EmbeddedVerificationOptions } from "./attest.js";
 import { PROTOCOL } from "./types.js";
 import type {
   AllocationRequest,
@@ -60,13 +60,15 @@ export interface RestoredRoom {
 }
 
 export interface CreateRoomOptions extends HttpOptions {
+  /** Mount/cancel the relay-hosted Turnstile check; omitted creates an SDK dialog. */
+  verification?: EmbeddedVerificationOptions;
   /** Application policy checked immediately after discovery, before allocation. */
   validateDiscovery?: (discovery: Discovery) => unknown | Promise<unknown>;
   /** Room creation password (required when the relay uses password auth). */
   password?: string;
   /**
    * Cloudflare Turnstile token, when the relay uses turnstile attestation.
-   * Preferred: leave this unset and let the SDK run the verification popup,
+   * Preferred: leave this unset and let the SDK run the verification dialog,
    * or exchange the token for a grant via the verify endpoint (createRoom
    * does this automatically when a token is supplied).
    */
@@ -166,7 +168,7 @@ export async function createRoom(
     if (mode.turnstile && !mode.oauth && opts.turnstileToken) {
       grant = (await verifyGrant(origin, opts.turnstileToken, host.publicKey, undefined, opts)).grant;
     } else if (typeof window !== "undefined" && typeof window.open === "function") {
-      grant = await requestGrant(origin, discovery, host.publicKey);
+      grant = await requestGrant(origin, discovery, host.publicKey, opts.verification);
     } else {
       throw new Error(
         "relay requires attestation; pass { grant } obtained from the verify endpoint or the OAuth login flow",
