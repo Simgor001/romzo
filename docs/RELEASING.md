@@ -36,7 +36,10 @@ version smoke tests before:
   `relay-licenses.tar.gz` (project, Go and dependency license notices).
 
 Branches, pull requests and manual verification runs do not publish the relay.
-There is no moving `latest` tag; deployment pins a reviewed server version.
+The version tag is immutable and remains the reviewed, pinned artifact. The
+job also publishes a moving `latest` tag pointing at the newest release, so
+deployments that opt into registry watchers (e.g. Watchtower) can follow it;
+pinning the version tag remains the recommended default.
 The workflow uses `GITHUB_TOKEN`; no registry password is needed. After the
 first image publication, set the GHCR package visibility to **Public** in its
 package settings so users can pull without authentication. Repository visibility
