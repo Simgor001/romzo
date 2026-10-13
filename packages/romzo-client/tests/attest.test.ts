@@ -15,7 +15,7 @@ const ORIGIN = "https://relay.test";
 function discovery(auth: string): Discovery {
   return {
     protocol: PROTOCOL,
-    version: "1.4.0",
+    version: "1.5.0",
     origin: ORIGIN,
     auth,
     salt: "ab".repeat(32),

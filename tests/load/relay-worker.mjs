@@ -89,7 +89,7 @@ const report = { startedAt: new Date().toISOString(), scope: 'container-local re
 try {
   await until(async () => (await fetch(origin + '/readyz').catch(() => null))?.ok);
   const discovery = await (await fetch(origin + '/.well-known/romzo', { headers: { Origin: clientOrigin } })).json();
-  if (discovery.version !== '1.4.0' || !discovery.stableMemberOrder) throw Error('current relay with durable numbering required');
+  if (discovery.version !== '1.5.0' || !discovery.stableMemberOrder) throw Error('current relay with durable numbering required');
   report.serverVersion = discovery.version;
   monitor = setInterval(async () => {
     try { const m = await metrics(); snapshots.push({ time: Date.now(), ...m }); }
