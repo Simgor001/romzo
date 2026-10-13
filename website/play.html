@@ -316,8 +316,8 @@ async function openSession(admission, transport, signedDescriptor) {
 }
 
 function failureDetail(error) {
-  if (error?.code === 'member_numbering_required') return { en: 'Upgrade the relay and enable durable member numbering before using this playground.', zh: '请先升级中继并启用持久成员编号，再使用在线体验。' };
-  if (error?.code === 'missing_signal_channel') return { en: 'This room lacks the required signal channel. Create a new room with the current version.', zh: '此房间缺少新版要求的 signal 频道，请使用新版重新建房。' };
+  if (error?.code === 'member_numbering_required') return { en: 'Member numbering is not enabled on the relay. The room cannot be connected.', zh: '服务节点未启用成员编号，无法连接房间。' };
+  if (error?.code === 'missing_signal_channel') return { en: 'This room has no signaling channel. Create another room.', zh: '此房间缺少信令频道，请重新建房。' };
   if (!globalThis.crypto?.subtle) return { en: 'Open the HTTPS link in your browser.', zh: '请在浏览器中打开 HTTPS 链接。' };
   if (/verification/i.test(error?.message || '')) return { en: 'Verification failed to load or complete. Try opening this link in your browser.', zh: '验证未能加载或完成，请尝试在浏览器中打开链接。' };
   if (error instanceof TypeError) return { en: 'Check your network connection and retry.', zh: '请检查网络连接后重试。' };

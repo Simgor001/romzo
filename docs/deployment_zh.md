@@ -1,205 +1,190 @@
-# Romzo 中继
+# 部署 Romzo
 
 English: [deployment.md](deployment.md)
 
-独立的 Go 服务；不依赖数据库，Turnstile 外部校验可按需开启。
+Romzo 是一个 Go 中继服务，不需要数据库。下面使用 Docker 从仓库源码构建，
+由 nginx 提供 HTTPS 和静态网页。命令在 Linux 服务器的仓库根目录执行。
 
-## 运行
+## 1. 构建镜像并生成配置
 
-```sh
-cd relay
-go run . init > ../deploy/.env.secrets
-```
-
-1. 妥善保管 .env.secrets。
-2. 把 `deploy/.env.example` 复制为 `deploy/.env`，在本地填入其中的空密钥值。
-3. 设置 `PUBLIC_ORIGIN`；公共服务使用 `CLIENT_ORIGINS=*`，私有服务填写允许的网页来源；管理界面单独配置 `ADMIN_ORIGINS`。
-4. 在 `relay/` 中运行 `go run . --env-file ../deploy/.env`。环境文件已被 Git 忽略。
-
-模板列出常用和可选配置。连接、帧率和 IP 限流与内置默认值一致；模板中的三项
-房间／节点限额仍然启用。Turnstile、可信代理、历史记录文件和创建 IP 记录按需
-配置。空密钥仍须填入初始化生成的值，当前不会在启动时自动生成。
-
-服务端以 HTTP/WS 形式运行在 TLS 反向代理之后；除显式回环开发外，PUBLIC_ORIGIN 必须是规范的 HTTPS 源站。不要把未加密监听口暴露到公网。`relay -version` 报告 1.4.0。
-
-## 配置
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `CLIENT_ORIGINS` | `PUBLIC_ORIGIN` | `*` 开放任意 HTTP(S) 网页来源；私有部署使用逗号分隔的精确来源（协议、主机、端口，不带路径）。来源开放不跳过身份认证或限流。 |
-| `ADMIN_ORIGINS` | `PUBLIC_ORIGIN` | metrics/admin 的独立来源白名单，不允许 `*`，仍须管理 Bearer 密钥。 |
-| `CREATE_AUTH` | — | 建房真人校验模式：`password`（PBKDF2 证明）、`anonymous`/`off`（免校验）、`turnstile`、`oauth`，以及组合 `turnstile+oauth`；后三者需要 `GRANT_KEY`。 |
-| `TURNSTILE_SECRET` | —（可选） | 启用 Cloudflare Turnstile 校验；要求 `CREATE_AUTH` 含 `turnstile`。siteverify 响应的 hostname 固定为 `PUBLIC_ORIGIN` 的主机名，除非用 `TURNSTILE_HOSTNAMES`（逗号分隔）覆盖；`TURNSTILE_ACTION` 可强制组件 action。客户端经 `/api/v1/verify` 用 token 换取 grant。 |
-| `*_FILE` 变量 | — | 私钥值也可改经对应的 `*_FILE` 变量提供。 |
-| `AUTH_SALT` | — | 正常重启期间保持稳定。轮换口令需要新盐。 |
-| `TICKET_KEY` | — | 正常重启期间保持稳定。丢失或轮换票据密钥会使恢复失效。 |
-| `GRANT_KEY` | — | 为建房 grant（turnstile/oauth 校验结果）签名；保持稳定，轮换仅使未使用的 grant 失效。 |
-| `TURNSTILE_SITEKEY` | — | 公开 Turnstile site key，经发现文档提供给 SDK 渲染组件；组合模式 `turnstile+oauth` 必填。 |
-| `OAUTH_*` | — | 通用 OAuth2/OIDC 客户端（`OAUTH_PROVIDER`、`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`OAUTH_AUTHORIZE_URL`、`OAUTH_TOKEN_URL`、`OAUTH_USERINFO_URL`，可选 `OAUTH_SCOPES`、`OAUTH_NAME_FIELD` 点路径）。要求 `CREATE_AUTH` 含 `oauth`；需在提供方注册回调地址 `PUBLIC_ORIGIN + /api/v1/auth/oauth/callback`。grant 携带提供方登录名作为主体，因此接入 OAuth 的节点即私服。 |
-
-房间仅存内存：重启后，持有未过期恢复票据的客户端恢复房间，并执行应用层重同步。
-
-升级本次源码后，公共服务可设置 `CLIENT_ORIGINS=*` 并重启中继。此前从其他域名访问管理接口的部署须显式填写 `ADMIN_ORIGINS`；它不再沿用游戏客户端白名单。现有密钥、建房模式和限额应保持原配置。已发布的 1.3.0 镜像尚不包含此更新，应先使用本次源码构建产物，或等待新版本发布。
-
-本次本地验收覆盖 Go 常规/race、SDK、公共/私有模式的真实 HTTP/WS 双客户端及重启恢复。Chromium 的两个不同网页来源已验证跨来源建房、签名握手、双向收发、重启恢复、管理来源隔离与私有模式拒绝；这不代表 romzo.net 已部署，也不代表完整游戏对局通过。
-
-## Docker
-
-在仓库根目录执行：
+安装 Docker 和 Compose，准备域名及 TLS 证书。网站构建和测试需要 Node.js 24+；
+运行源码测试还需要 Go，要求见 `relay/go.mod`。首次部署时执行：
 
 ```sh
-docker compose -f deploy/compose.yaml pull
-docker compose -f deploy/compose.yaml up -d
+cp -n deploy/.env.example deploy/.env
+chmod 600 deploy/.env
+docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml build relay
+umask 077
+docker run --rm romzo-local:dev init > deploy/.env.secrets
 ```
 
-Compose 直接拉取 GHCR 的版本镜像，支持 Linux amd64 和 arm64。通过
-`ROMZO_VERSION=v1.3.0` 选择已发布版本。首次发布完成后，维护者需将镜像包
-设为 Public，用户才能匿名拉取。可用
-`docker run --rm ghcr.io/simgor001/romzo:v1.4.0 init > deploy/.env.secrets`
-生成密钥，再按上文填写 `deploy/.env`。
+将 `.env.secrets` 中生成的密钥填入 `deploy/.env`。`init` 只需执行一次；
+以后重启或重新构建时，保留这份配置和密钥。
 
-需要从源码构建时执行：
+编辑 `deploy/.env`：
+
+| 配置 | 填写方式 |
+| --- | --- |
+| `PUBLIC_ORIGIN` | 中继的公网地址，例如 `https://relay.example.com`，不带路径。 |
+| `CLIENT_ORIGINS` | 公共节点填 `*`；限制访问时填写网页来源，多个来源用逗号分隔。 |
+| `ADMIN_ORIGINS` | 管理页面的来源，例如 `https://relay.example.com`，不支持 `*`。 |
+| `CREATE_AUTH` | 建房方式，见下方说明。模板使用 `password`。 |
+| `AUTH_SALT`、`TICKET_KEY` | 填入初始化结果。保持不变，才能继续使用恢复票据。 |
+| `GRANT_KEY` | 填入初始化结果。Turnstile 和 OAuth 建房需要此密钥。 |
+| `METRICS_KEY` | 填入初始化结果，用于管理页面；留空则关闭监控和管理接口。 |
+| `MEMBER_STATE_FILE` | `/data/members.json`，保存参与者编号，在线体验需要此配置。 |
+| `METRICS_HISTORY_FILE` | `/data/rooms.json`，保存流量统计和房间下线记录。 |
+
+来源填写协议、域名及需要的端口，例如 `https://game.example.com` 或
+`http://127.0.0.1:7104`，不能带路径。允许网页来源只决定谁能调用接口，
+不会免除身份认证或流量限制。
+
+### 选择建房方式
+
+| `CREATE_AUTH` | 还需要填写 |
+| --- | --- |
+| `password` | `CREATE_PASSWORD`，使用初始化生成的口令。 |
+| `anonymous` | 无建房验证。 |
+| `turnstile` | `TURNSTILE_SECRET`、`TURNSTILE_SITEKEY`、`GRANT_KEY`。 |
+| `oauth` | `OAUTH_PROVIDER`、`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、授权／token／用户信息地址，以及 `GRANT_KEY`。 |
+| `turnstile+oauth` | 同时填写 Turnstile 和 OAuth 配置。 |
+
+网站的 `play.html` 使用 Turnstile 建房。部署这个页面时，设置
+`CREATE_AUTH=turnstile`，并让组件的 site key 与 `TURNSTILE_SITEKEY` 一致。
+若验证组件所在网页的域名与中继域名不同，还要在 `TURNSTILE_HOSTNAMES`
+中填写网页域名；Cloudflare 组件配置也必须允许该域名。
+若设置 `TURNSTILE_ACTION`，其值应与页面组件的 action 一致。
+
+OAuth 提供方的回调地址填写 `PUBLIC_ORIGIN` 加
+`/api/v1/auth/oauth/callback`。可选配置见 [环境变量模板](../deploy/.env.example)。
+
+## 2. 准备数据目录并启动
+
+Compose 把服务器的 `/opt/romzo/data` 挂载到容器的 `/data`。
+容器以 UID 65532 运行，需要这个目录的写权限：
 
 ```sh
-docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up --build -d
+sudo install -d -m 700 -o 65532 -g 65532 /opt/romzo/data
+docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up -d
+docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml logs --tail=50 relay
 ```
 
-- 镜像以非特权用户运行，文件系统只读，capabilities 已收缩，主机端口映射到回环。
-- 镜像内含用于出站 Turnstile HTTPS 的 CA 根。
-- 自行配置域名与 TLS；`deploy/nginx.conf` 是占位示例。
-- 仅为实际可信的代理源 CIDR 配置 `TRUSTED_PROXIES`。私有模式的 HTTP/WS 来源必须与 `CLIENT_ORIGINS` 精确匹配；公共模式允许任意 HTTP(S) 来源。来源不建立身份。缺少 Origin 的非浏览器 WS 客户端只在公共模式中允许；浏览器的 `null` 来源仍被拒绝。
-- 服务端不托管客户端或重定向。单独的静态客户端同源配置示例见 `deploy/nginx-same-origin.conf`。
+看到 `romzo relay ready` 表示服务已启动。监听口映射到服务器的
+`127.0.0.1:9224`，不直接暴露到公网。容器根目录只读，状态文件写入 `/data`。
 
-端口约定：中继默认监听回环 9224；邀请链接的服务默认端口为 443——TLS 由中继前的反向代理在 443 终结（nginx 将 `/ws`、`/api/v1/` 与 `/.well-known/romzo` 转发给中继），或由中继直接监听 443 并终结 TLS。其他端口的中继必须在邀请中显式写出。注意 Cloudflare 橙云代理不支持 5 位端口：使用 5 位端口时请用 DNS-only 记录 + 自有证书；Turnstile 不受影响。
+`members.json` 保存身份与参与者编号的对应关系，不保存聊天记录。
+`rooms.json` 保存监控计数和下线标记。两个文件不能使用同一路径，
+同一份数据目录只供一个 relay 进程使用。文件损坏或不可读时，服务会拒绝启动。
 
-## 限制
+## 3. 配置 HTTPS 和网站
 
-默认值：
+按 [nginx 示例](../deploy/nginx.conf) 修改域名、证书路径和静态文件目录。
+反向代理需要转发以下路径到 `http://127.0.0.1:9224`：
 
-| 限制 | 默认值 | 说明 |
-| --- | --- | --- |
-| 房间数（`MAX_ROOMS`） | 64 | |
-| 连接数（`MAX_CONNECTIONS`） | 512 | |
-| 未认证连接 | 64 | |
-| 每房间连接 | 32 | |
-| 认证时限 | 5 秒 | |
-| admission 票据有效期 | 60 秒 | |
-| 空闲连接上限 | 45 秒 | |
-| 新建空闲房间过期 | 10 分钟 | |
-| 活跃恢复租约 | 最长 30 分钟 | |
+- `/.well-known/romzo`
+- `/api/v1/`
+- `/ws`，保留 WebSocket Upgrade 请求头
 
-每连接：
-
-| 限制 | 默认值 | 说明 |
-| --- | --- | --- |
-| 帧率 | 64 帧/秒 | |
-| 带宽 | 1 MiB/秒 | 突发 2 秒。 |
-
-每 IP：
-
-| 限制 | 默认值 | 说明 |
-| --- | --- | --- |
-| 每 IP 聚合入站已认证 WS 字节（`IP_BYTES_PER_SECOND`） | 1 MiB/秒 | 跨房间/频道/连接共享；原始 JSON 空白也计入。每连接限制同时生效。 |
-
-options：
-
-| 限制 | 默认值 | 说明 |
-| --- | --- | --- |
-| `MAX_OPTIONS_BYTES` | 4096 UTF-8 原始字节 | 默认与最大。options 接受任何 canonical JSON 根类型，仅安全整数。服务端核对 configHash 与宿主签名；应用客户端校验自己的规则。 |
-
-受限演示可考虑 `MAX_ROOMS=32`、`MAX_CONNECTIONS=128`，两个字节率均为 262144。队列/帧/负载限制与终端错误见 [FRAMES_zh.md](../protocol/FRAMES_zh.md)。
-
-出站扇出带宽不受此限。
-
-服务端 1.3.0 使用线上协议 `romzo/v1`。多实例路由与故障迁移仅靠恢复票据不够。
-
-## 验证
-
-在仓库根目录：`npm ci && npm run verify`。在 `relay/` 内：`go test ./...` 与 `go test -race ./...`。`openapi.yaml` 是 HTTP 面的唯一信源；契约测试校验其端点覆盖。`protocol/` 下的共享夹具均为公开的确定性测试值，不得用作生产密钥。
-
-## 只读监控
-
-`GET /api/v1/metrics` 使用独立、持久化的 `METRICS_KEY`，通过
-`Authorization: Bearer <key>` 鉴权。不配置密钥时接口关闭（404）；
-缺少或错误的密钥返回 401，本机访问也需要鉴权。
-
-`relay init` 会随其他密钥生成一个随机的 32 字节十六进制监控密钥。
-将它保存在私有 `.env` 中，或通过 `METRICS_KEY_FILE` 指定私有密钥文件，
-两者不能同时设置。已有部署可运行 `openssl rand -hex 32` 生成并保存一次。
-每次启动读取同一份配置即可沿用；更换密钥需要重启。
-监控密钥与建房口令、票据密钥独立，不要混用。
+relay 只提供 API 和 WebSocket，网页由 nginx 或其他静态服务器提供。
+构建网页所需的 SDK：
 
 ```sh
-curl -H "Authorization: Bearer $METRICS_KEY" https://relay.example.com/api/v1/metrics
+npm ci
+npm run build:website
 ```
 
-不要将密钥写入源码、前端、URL 或代理日志。远程访问使用 HTTPS。
-接口仅提供汇总计数；帧数和字节数从进程启动起累计，速率可用两次采样的
-差值除以时间间隔计算。监控接口只读；管理页面另提供鉴权后的房间下线操作。
+将整个 `website/` 目录部署到静态文件目录，包括生成的 `website/sdk/`。
+使用自己的中继域名时，修改 `website/play.html` 的 `ORIGIN` 和
+`website/site.js` 的节点地址；Turnstile site key 位于 `play.html` 的
+`ts-widget` 元素。管理页面位于 `website/admin/`。
 
-### 节点状态页
+只在代理可信时填写 `TRUSTED_PROXIES`，值为代理源 IP 的 CIDR。
+中继本身使用 HTTP；公网 HTTPS 由反向代理提供。邀请链接使用公网地址，
+不要填写容器端口或 `127.0.0.1`。
 
-在中继域名下打开 `/admin/`，输入同一个监控 key。控制台是仓库
-`website/admin/` 里的静态文件，纯前端调用中继接口，没有外部资源。
-放在中继域名下最省事——浏览器可以直接同源调用接口；怎么分发由部署者决定。
-可查看汇总计数、采样字节速率、关闭原因
-和最后成功更新时间，每 5 秒刷新一次，可暂停、手动刷新或退出。
-key 仅保存在页面内存中，刷新、离开页面或退出后清除，不写入浏览器存储或 URL。
-未配置 `METRICS_KEY` 时，监控接口关闭，页面无数据可读。
+## 4. 检查部署
 
-鉴权后的房间排行展示房间号和独立监控编号。房间数包含未确认的预留房间。
-入站计数统计认证后的协议帧；出站计数统计进入发送队列的帧，不保证成功投递。
-字节数不包含 HTTP、WebSocket 帧头、TCP、TLS 开销，不能当作云厂商计费流量。
-公开的 `/healthz`、`/readyz` 用于健康检查；`/.well-known/romzo` 描述配置，
-不反映当前负载。状态页与鉴权监控 API 展示的是同一份统计数据。
-
-### 房间记录与限额
-
-状态页提供流量 Top 10，以及当前有连接的房间在线时长 Top 10。
-在线时长从开始监控起累计，不含无连接时间和节点停机时间。
-记录独立编号、房间号、计数、时间、下线原因及可选创建 IP；不记录频道名、options、
-身份密钥或消息内容。结束的房间保留 24 小时，最多 5120 条；满额时新建房间
-返回 503，等待旧记录到期，不通过丢弃尚有效的限额记录来释放容量。
+先检查服务器本机，再检查公网地址：
 
 ```sh
-METRICS_HISTORY_FILE=.romzo-history/rooms.json
-MAX_ROOM_TRAFFIC_BYTES=1073741824
-MAX_ROOM_AGE_SECONDS=21600
+curl -fsS http://127.0.0.1:9224/readyz
+curl -fsS https://relay.example.com/.well-known/romzo
 ```
 
-上述配置为每房间入站与出站入队合计 1 GiB、从首次监控起最长 6 小时。
-设为 0 可关闭相应限制；已有部署必须明确配置限额。历史文件放在私有目录中，
-推荐目录已被 Git 忽略。每 10 秒及正常关闭时原子保存一次，异常退出可能丢失
-一个保存周期的数据。损坏的历史文件会阻止启动；写入失败会显示在状态页和
-控制台。不配置文件时，历史与限额计数只保存在内存中。
-Docker 需要挂载 UID 65532 可写的目录，将文件路径指向该目录。
+发现接口应返回正确的 `origin`，以及 `stableMemberOrder: true`。
+然后打开 `play.html`，创建房间，用另一个浏览器加入并互发消息。
+成员列表和消息作者应显示相同的参与者编号。
 
-到限后断开该房间的全部连接；有效限额记录存在期间，恢复票据也不能绕过。
-创建另一间房仍可消耗资源，需要结合现有 IP／连接限流、连接数上限、建房
-鉴权或 Turnstile。无法仅凭不透明的消息判断具体用途（游戏、隧道等），也不能把这些
-协议字节统计当作云厂商计费预算。
+| 现象 | 检查位置 |
+| --- | --- |
+| 节点未启用成员编号 | 检查容器的 `MEMBER_STATE_FILE`。修改 `.env` 后重新执行 Compose `up -d --force-recreate`，单纯重启不会更新环境变量。 |
+| `member state write failed` | 检查 `/data` 挂载和 UID 65532 的写权限。 |
+| Turnstile 验证失败 | 检查 site key、secret、网页域名和 action 是否对应。 |
+| HTTP 正常、WebSocket 连接失败 | 检查 `/ws` 转发、Upgrade 请求头及 `CLIENT_ORIGINS`。 |
+| `invalid metrics history` | 检查日志和 `rooms.json`，保留文件以便排查，不要直接删除下线记录。 |
 
-`NODE_OUTBOUND_BYTES_PER_SECOND` 限制全节点出站入队速率，允许两秒突发。
-部署示例为 1 MiB/s，0 为关闭；超限连接会断开并计入 node_outbound_rate。
-需要按应用重同步时的峰值调整。代码默认关闭新限额以兼容已有部署，复制部署
-示例时才会明确启用这些值。
+## 日常维护
 
-### 房间管理
+更新源码并重新构建：
 
-`METRICS_KEY` 同时授权监控与房间下线，必须保密。管理页面展示房间号和可选的创建 IP。`RECORD_CREATOR_IP=false` 为默认值；显式启用后，才记录建房请求来源 IP。代理地址按 `TRUSTED_PROXIES` 规则解析。恢复房间不会把恢复者 IP 记为创建 IP；缺少原记录时显示未知。
+```sh
+git pull --ff-only
+docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up -d --build
+```
 
-携带 `Authorization: Bearer <METRICS_KEY>`，向 `/api/v1/admin/rooms/stop` POST `{"id":"<监控编号>"}`，可断开房间内所有连接并拒绝有效恢复票据。管理页面提供“下线”按钮。这不封禁用户，也不阻止新建房间；IP 过滤交给反向代理或 VPS 防火墙。
+修改 `.env` 后执行：
 
-配置 `METRICS_HISTORY_FILE` 后，记录和下线标记保存在部署者本地。结束记录在 24 小时后清理，长于当前 10／30 分钟恢复票据期限；未配置文件时，重启会清空记录。下线立即生效；保存失败返回 500，此时不能保证重启后仍拒绝恢复。其他历史更新约每 10 秒保存一次。不得将记录或密钥提交到 Git、打包到镜像或公开。启用 IP 历史记录时，应告知用户用途、访问人员和保留期限。监控数据不回传给项目方；创建 IP 不能单独证明个人身份。
+```sh
+docker compose -f deploy/compose.yaml -f deploy/compose.source.yaml up -d --force-recreate
+```
 
-## 持久成员编号
+备份 `deploy/.env` 和 `/opt/romzo/data`。复制数据文件前先停止 relay，
+备份后再启动。不要把这些文件放进网站、镜像或 Git。
+更换 `TICKET_KEY` 会使恢复票据失效；丢失成员状态文件后，参与者编号无法恢复。
 
-新版在线体验页要求启用此功能；未提供成员编号的节点会明确拒绝连接，不再兼容旧版。
+中继在内存中维护在线房间，不保存消息历史。服务重启后，客户端使用
+恢复票据恢复房间，消息历史由应用同步。状态文件不能代替聊天或游戏存档。
 
-设置 `MEMBER_STATE_FILE=/var/lib/romzo/members.json`，并挂载持久、私有且可写的目录；Docker 中目录应归 relay 的 UID 65532 所有。不能与 `METRICS_HISTORY_FILE` 使用同一路径。留空则不启用、不声明 `stableMemberOrder`。文件只保存公钥与编号、房间实例、描述符摘要及保留期限，不保存聊天、私钥或票据；公钥身份信息仍应作为私有运维数据处理。
+直接运行 Go 二进制时，可使用 `--env-file deploy/.env` 加载配置；
+将监听地址设为 `127.0.0.1:9224`，并把两个状态文件路径改为服务用户可写的目录。
 
-新身份登记和恢复凭据续期都在确认前同步落盘：私有临时文件、文件 fsync、原子替换，Unix 另同步目录。Windows 验收覆盖进程崩溃恢复；Go 的可移植 Windows 文件接口不保证断电时目录替换的持久性。同一文件只供一个 relay 进程使用。每房间最多登记 4096 个历史身份，最多保留 8192 个房间实例，序列化文件不超过 32 MiB；达到上限拒绝操作，不丢弃编号。首版通过同步全量快照保证确认前持久化，吞吐需要按实际节点测量。
+## 监控和流量限制
 
-文件不存在时初始化空状态，无法找到原记录的恢复请求会失败；已有文件损坏或不可读则拒绝启动。保留原 TICKET_KEY、服务 origin 和持久卷。仅在房间已不存在且所有已签发恢复票据过期后清理记录。房间描述符与消息仍需客户端恢复及同步。不能把旧备份直接当作在线回滚：旧状态可能缺少已确认编号，使用前必须作废受影响房间及票据。
+打开 `/admin/`，输入 `METRICS_KEY`。管理页面可查看连接、流量、关闭原因
+和房间排行，也可下线房间。密钥只保存在页面内存中。
+`GET /api/v1/metrics` 使用 `Authorization: Bearer <METRICS_KEY>` 鉴权。
+未配置密钥时接口返回 404，错误密钥返回 401。
 
-发布方式：relay、SDK 和网站按当前版本统一升级；排空旧房间，准备持久卷并配置 MEMBER_STATE_FILE，再发布 relay、SDK 和网站。不要给无法追溯原始顺序的旧房间热启用编号。观察 member_capacity、member_state_write_failed、member_state_unavailable 错误及磁盘用量。本地通过不代表公共节点已部署。
+| 变量 | 不设置时 | 模板值 |
+| --- | --- | --- |
+| `MAX_ROOMS` | 64 | 64 |
+| `MAX_CONNECTIONS` | 512 | 512 |
+| `MAX_UNAUTHENTICATED` | 64 | 64 |
+| `MAX_ROOM_CONNECTIONS` | 32 | 32 |
+| `FRAMES_PER_SECOND` | 每连接 64 帧／秒 | 64 |
+| `BYTES_PER_SECOND` | 每连接 1 MiB／秒 | 1048576 |
+| `IP_BYTES_PER_SECOND` | 每 IP 入站 1 MiB／秒 | 1048576 |
+| `MAX_OPTIONS_BYTES` | 4096 字节 | 4096 |
+| `MAX_ROOM_TRAFFIC_BYTES` | 0，不限制 | 1073741824，合计 1 GiB |
+| `MAX_ROOM_AGE_SECONDS` | 0，不限制 | 21600，6 小时 |
+| `NODE_OUTBOUND_BYTES_PER_SECOND` | 0，不限制 | 1048576，1 MiB／秒 |
+
+帧率和字节率超限会断开连接。房间流量或时长到限会断开该房间的全部连接，
+恢复票据不能绕过限额。广播的出站流量按接收人数累加，给同步和重连留出余量。
+这些计数是协议字节，不包括 TLS、TCP 等开销。
+
+监控历史每 10 秒及正常关闭时保存一次。房间结束记录保留 24 小时，
+最多保存 5120 条。`RECORD_CREATOR_IP` 默认关闭；启用后管理记录包含创建 IP。
+
+## 本地测试
+
+```sh
+npm ci
+npx playwright install --with-deps chromium
+npm run verify
+npm run test:docker-load
+```
+
+`verify` 检查 SDK、Go／race、真实 HTTP／WS 和浏览器集成。
+Docker 打流报告保存在 `test-results/docker-load/`。这些命令检查本机环境；
+部署后的域名、证书和验证组件仍需按上面的步骤检查。

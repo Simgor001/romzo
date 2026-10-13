@@ -117,8 +117,7 @@ re-discovers peers after roster restoration. `bye` is best effort.
 
 The website's `play.html` is the single browser demo and includes path badges.
 The playground requires signal and durable member numbering (`MEMBER_STATE_FILE`)
-on the current relay. Rooms lacking signal and nodes without member numbers are
-rejected explicitly; the playground does not support older relays.
+on the relay. Rooms lacking signal and nodes without member numbers cannot connect.
 Run `npm run build:website` and `npm run dev --prefix website` for local preview.
 The deployed playground targets romzo.net; integration tests substitute a local
 relay origin and stub verification only. `npm run test:mesh` verifies real local

@@ -96,8 +96,8 @@ candidate 绑定 generation 和 ICE ufrag，每代最多 64 条／64 KiB。
 中继掉线立即关闭 PC、拒绝旧目标队列；重连后恢复名册并重新发现。bye 仅尽力发送。
 
 官网 `play.html` 是唯一浏览器演示入口，包含路径角标。新房间声明 signal 并使用
-mesh，并要求新版中继启用持久成员编号（`MEMBER_STATE_FILE`）。缺少 signal 的房间或
-未提供成员编号的节点会明确拒绝，不再兼容旧版。运行 `npm run build:website` 和
+mesh，并要求中继启用持久成员编号（`MEMBER_STATE_FILE`）。缺少 signal 的房间或
+未提供成员编号的节点会拒绝连接。运行 `npm run build:website` 和
 `npm run dev --prefix website` 可本地预览；正式页面连接 romzo.net，集成测试
 仅替换本地中继地址并模拟验证。`npm run test:mesh` 覆盖本机真实 RTC、回退、relay 重启
 和 SDK 包消费；公网 NAT、UDP 受限网络与 TURN 候选路径须另行实网验收。
