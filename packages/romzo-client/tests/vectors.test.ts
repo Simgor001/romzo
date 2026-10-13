@@ -16,10 +16,14 @@ const vector = JSON.parse(
     "utf8",
   ),
 );
+const relayVersion = readFileSync(
+  fileURLToPath(new URL("../../../relay/protocol.go", import.meta.url)),
+  "utf8",
+).match(/const version = "([^"]+)"/)[1];
 
 describe("relay-v1 shared vectors", () => {
   it('generic options retain the frozen v1 canonical hash contract', async () => {
-    expect(vector.relayVersion).toBe('1.4.0');
+    expect(vector.relayVersion).toBe(relayVersion);
     expect(await hash('romzo/lobby-options/v1', vector.genericOptions)).toBe(vector.genericOptionsHash);
   });
   it("canonical encoding matches", () => {

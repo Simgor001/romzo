@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { canonical, hash, hex } from 'romzo/canonical';
 const path = new URL('../protocol/relay-v1-vectors.json', import.meta.url);
+const protocolSource = readFileSync(new URL('../relay/protocol.go', import.meta.url), 'utf8');
+const relayVersion = protocolSource.match(/const version = "([^"]+)"/)[1];
 const original = JSON.parse(readFileSync(path, 'utf8'));
 const {value,domain,password,salt,iterations,genericOptions} = original;
 assert.equal(password, 'public-test-vector-password');
@@ -19,7 +21,7 @@ const generated={value,domain,canonical:canonical(value),digest:await hash(domai
   derived:hex(key),hmac:hex(await crypto.subtle.sign('HMAC',hmac,signingBytes)),
   createProof:hex(await crypto.subtle.sign('HMAC',hmac,new TextEncoder().encode('romzo/relay-create/v1\0'+canonical(value)))),
   publicKey:'d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a',
-  signature:hex(await crypto.subtle.sign('Ed25519',privateKey,signingBytes)),relayVersion:'1.4.0',genericOptions,
+  signature:hex(await crypto.subtle.sign('Ed25519',privateKey,signingBytes)),relayVersion,genericOptions,
   genericOptionsHash:await hash('romzo/lobby-options/v1',genericOptions)};
 if(process.argv.includes('--check')) {assert.deepEqual(generated, original);console.log('Shared deterministic vectors match.');}
 else writeFileSync(path,JSON.stringify(generated,null,2)+'\n');
