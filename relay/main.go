@@ -26,13 +26,16 @@ func main() {
 		fmt.Println(version)
 		return
 	}
+	if len(os.Args) == 2 && os.Args[1] == "-health" {
+		os.Exit(runHealthCheck())
+	}
 	if len(os.Args) == 3 && os.Args[1] == "--env-file" {
 		if e := loadEnv(os.Args[2]); e != nil {
 			fmt.Fprintln(os.Stderr, "configuration file could not be loaded")
 			os.Exit(1)
 		}
 	} else if len(os.Args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: relay [init | rotate-password | -version | --env-file PATH]")
+		fmt.Fprintln(os.Stderr, "usage: relay [init | rotate-password | -version | -health | --env-file PATH]")
 		os.Exit(1)
 	}
 	c, e := config()
@@ -142,4 +145,31 @@ func loadEnv(path string) error {
 		}
 	}
 	return scanner.Err()
+}
+
+// runHealthCheck reports whether a relay is answering on its listen address.
+// It backs the container HEALTHCHECK and lets orchestrators roll back a bad
+// deployment automatically; exits 0 on a healthy discovery document.
+func runHealthCheck() int {
+	addr := os.Getenv("LISTEN")
+	if addr == "" {
+		addr = "127.0.0.1:9224"
+	}
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	// Bare IPv6 literals need brackets before they can go into a URL.
+	if strings.Count(addr, ":") > 1 && !strings.HasPrefix(addr, "[") {
+		addr = "[" + addr + "]"
+	}
+	client := http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + addr + "/.well-known/romzo")
+	if err != nil {
+		return 1
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 1
+	}
+	return 0
 }

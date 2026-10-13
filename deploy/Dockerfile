@@ -19,4 +19,5 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 COPY --from=build /licenses /licenses
 USER 65532:65532
 EXPOSE 9224
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["/relay", "-health"]
 ENTRYPOINT ["/relay"]
