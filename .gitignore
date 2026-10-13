@@ -25,3 +25,6 @@ test-results/
 # Private identity/order metadata and interrupted atomic writes.
 .romzo-members/
 .romzo-members-*
+
+# Server-side operational scripts (local deployment only, never publish).
+.server-auto-update/
