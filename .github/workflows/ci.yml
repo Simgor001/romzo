@@ -25,8 +25,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - name: Install mesh browser engine
-        run: npx playwright install --with-deps chromium
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium webkit
       - run: npm run verify
       - name: Install mobile browser engines
         if: runner.os == 'Linux'
@@ -157,8 +157,8 @@ jobs:
           version=$(node -p "require('./packages/romzo-client/package.json').version")
           test "$GITHUB_REF_NAME" = "client-v$version"
       - run: npm ci
-      - name: Install mesh browser engine
-        run: npx playwright install --with-deps chromium
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium webkit
       - run: npm run verify
       - name: Publish SDK to npm
         run: npm publish -w romzo --access public
