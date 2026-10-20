@@ -57,13 +57,13 @@ func TestExclusiveIdentityHandshakeAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer second.CloseNow()
 	writeTest(t, second, map[string]any{"v": protocol, "kind": "authenticate", "admission": admission})
 	challenge := readTest(t, second)
 	writeTest(t, second, map[string]any{"v": protocol, "kind": "proof", "signature": signed(key, "romzo/relay-connect/v1", challenge["value"])})
 	if readTest(t, second)["error"] != "identity_in_use" {
 		t.Fatal("duplicate identity accepted")
 	}
+	second.CloseNow()
 	first.CloseNow()
 	deadline := time.Now().Add(2 * time.Second)
 	for {
@@ -80,6 +80,21 @@ func TestExclusiveIdentityHandshakeAndRelease(t *testing.T) {
 	}
 	restored := connectTest(t, server.URL, admission, key)
 	restored.CloseNow()
+	// Member state persists on connection close; wait for every server-side
+	// handler to return so the temp-dir save cannot race TempDir cleanup.
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		s.mu.Lock()
+		n := s.connections
+		s.mu.Unlock()
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("relay connections did not drain")
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 func TestHostedVerificationPageOriginAndCSP(t *testing.T) {
