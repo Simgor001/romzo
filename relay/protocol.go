@@ -18,7 +18,7 @@ import (
 )
 
 const protocol = "romzo/v1"
-const version = "1.5.0"
+const version = "1.6.0"
 const grantDomain = "romzo/relay-grant/v1"
 const grantTTL = 5 * time.Minute
 const api = "/api/v1/"

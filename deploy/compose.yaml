@@ -1,6 +1,6 @@
 services:
   relay:
-    image: ghcr.io/simgor001/romzo:${ROMZO_VERSION:-v1.5.0}
+    image: ghcr.io/simgor001/romzo:${ROMZO_VERSION:-v1.6.0}
     env_file: .env
     environment:
       LISTEN: :9224

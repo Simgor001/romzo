@@ -4,9 +4,14 @@ English: [README.md](README.md)
 
 基于房间（room）的不透明 WebSocket 中继，附带支持移动浏览器的 TypeScript SDK。中继负责房间注册、签名票据（ticket）、频道（channel）成员管理与有界转发；加密、游戏规则、持久化、重连与历史同步由应用负责。
 
-服务端版本：**1.5.0**。SDK：**romzo 0.4.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
+服务端版本：**1.6.0**。SDK：**romzo 0.4.0**。线上协议（wire protocol）：**romzo/v1**（HTTP 位于 `/api/v1`，WebSocket 位于 `/ws`）。
 
 ## 组件
+
+1.6.0 新增：
+
+- 浏览器身份持久化——设置 `MEMBER_STATE_FILE` 的中继在发现文档中声明 `persistentIdentity`，客户端可保存并恢复房间身份（此前发布的公共镜像缺少该声明，导致建房失败），
+- 浏览器 playground 内嵌中继验证与身份恢复流程。
 
 1.5.0 新增：
 

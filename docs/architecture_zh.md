@@ -40,7 +40,7 @@ SDK 生成的私钥是可导出的（extractable），应用可导出以用于�
 
 ## 兼容性与验证
 
-服务端 1.5.0 与 SDK 0.4.0 使用公共协议 `romzo/v1`，HTTP 接口为 `/api/v1/`，WebSocket 为 `/ws`，发现接口为 `/.well-known/romzo`。
+服务端 1.6.0 与 SDK 0.4.0 使用公共协议 `romzo/v1`，HTTP 接口为 `/api/v1/`，WebSocket 为 `/ws`，发现接口为 `/.well-known/romzo`。
 
 密码学域使用 `romzo/` 前缀。
 

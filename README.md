@@ -6,11 +6,16 @@ A room-based opaque WebSocket relay with a mobile-compatible TypeScript SDK.
 The relay handles room registration, signed tickets, channel membership and bounded forwarding.
 Applications own encryption, rules, persistence, reconnection and history synchronization.
 
-Server release: **1.5.0**.
+Server release: **1.6.0**.
 SDK: **romzo 0.4.0**.
 Wire protocol: **romzo/v1** (HTTP under `/api/v1`, WebSocket at `/ws`).
 
 ## Components
+
+Released in 1.6.0:
+
+- persistent browser identities — relays with `MEMBER_STATE_FILE` advertise `persistentIdentity` so clients can save and restore room identities (the previous public image lacked the advertisement, breaking room creation),
+- embedded relay verification and identity recovery flow in the browser playground.
 
 Released in 1.5.0:
 

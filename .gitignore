@@ -28,3 +28,6 @@ test-results/
 
 # Server-side operational scripts (local deployment only, never publish).
 .server-auto-update/
+
+# Local relay runtime (dev)
+data/
