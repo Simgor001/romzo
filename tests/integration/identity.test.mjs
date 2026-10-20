@@ -108,11 +108,11 @@ test('persistent identity: real IndexedDB, tabs, expiry, restart and hosted veri
     },origin);assert.deepEqual(ttlResult,{live:true,expired:true,rejected:true});
     const visual=await context.newPage();await visual.setViewportSize({width:390,height:844});
     await visual.route('https://challenges.cloudflare.com/**',route=>route.fulfill({contentType:'text/javascript',body:'window.turnstile={render:()=>1};window.ready();'}));
-    await visual.goto(app+'/play.html');await visual.locator('#create').click();await expect(visual.locator('dialog[aria-label="Romzo verification"]')).toBeVisible();
-    const verificationFrame=visual.frameLocator('iframe[title="Romzo verification"]');await expect(verificationFrame.locator('body')).toHaveCSS('font-family','system-ui');
+    await visual.goto(app+'/play.html');await visual.locator('#create').click();await expect(visual.locator('#ts-widget:not([hidden]) iframe[title="Romzo verification"]')).toBeVisible();
+    const verificationFrame=visual.frameLocator('#ts-widget iframe[title="Romzo verification"]');await expect(verificationFrame.locator('body')).toHaveCSS('font-family','system-ui');
     mkdirSync('test-results',{recursive:true});await visual.screenshot({path:'test-results/identity-verification-dialog.png',fullPage:true});
-    assert.equal(await visual.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'verification dialog overflow');
-    await visual.locator('dialog[aria-label="Romzo verification"] button').click();await expect(visual.locator('dialog[aria-label="Romzo verification"]')).toHaveCount(0);
+    assert.equal(await visual.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'verification widget overflow');
+    await visual.locator('#verify-cancel').click();await expect(visual.locator('#ts-widget iframe')).toHaveCount(0);
     assert.deepEqual(errors,[]);await context.close();
   }finally{await browser?.close();await kill();await new Promise(r=>site.close(r));await new Promise(r=>verify.close(r));if(dirname(resolve(dir))!==resolve(tmpdir())||!dir.split(/[\\/]/).at(-1).startsWith('romzo-identities-'))throw Error('unexpected identity fixture directory');rmSync(dir,{recursive:true,force:true});}
 });

@@ -62,6 +62,8 @@
       <p class="play-hint l-en">Create a room and invite a friend to chat.</p>
       <p class="play-hint l-zh">建个房间，邀请朋友来聊天。</p>
 
+      <div id="ts-widget" hidden></div>
+      <button class="btn ghost" id="verify-cancel" type="button" hidden><span class="l-en">Cancel verification</span><span class="l-zh">取消验证</span></button>
       <button class="btn primary" id="create" type="button"><span class="l-en">Create room</span><span class="l-zh">创建房间</span></button>
       </div>
       <form id="join-panel" hidden>
@@ -291,6 +293,10 @@ function failureDetail(error) {
 }
 
 // Host flow
+const tsWidget = document.getElementById('ts-widget');
+const verifyCancel = document.getElementById('verify-cancel');
+let verifyAbort = null;
+verifyCancel.addEventListener('click', () => verifyAbort?.abort());
 document.getElementById('create').addEventListener('click', async () => {
   const btn = document.getElementById('create');
   if (btn.disabled) return;
@@ -298,8 +304,10 @@ document.getElementById('create').addEventListener('click', async () => {
   setStatus('Complete the check to create your room.', '请完成验证，随后自动创建房间。');
   try {
     setRoomBusy(true);
+    verifyAbort = new AbortController();
+    tsWidget.hidden = false; verifyCancel.hidden = false;
     const store = await identityStore;
-    const room = await createRoom(ORIGIN, roomOptions, { validateDiscovery: d => { if (!d.persistentIdentity) throw Object.assign(Error('persistent identity unavailable'), {code:'persistent_identity_unavailable'}); } });
+    const room = await createRoom(ORIGIN, roomOptions, { validateDiscovery: d => { if (!d.persistentIdentity) throw Object.assign(Error('persistent identity unavailable'), {code:'persistent_identity_unavailable'}); }, verification: { mount: tsWidget, signal: verifyAbort.signal } });
     const identity = await store.save({origin:ORIGIN,code:room.descriptor.code,instance:room.descriptor.instance,transport:room.transport,host:room.host,signedDescriptor:room.signedDescriptor,recovery:room.recovery});
     const tracker = store.track(identity);
     const invite = buildInviteLink(ORIGIN, room.descriptor.code, new URL('play.html', location.href).href.split('#')[0], inviteOptions);
@@ -316,6 +324,9 @@ document.getElementById('create').addEventListener('click', async () => {
     systemMessage('Could not create the room. ' + detail.en, '创建房间失败。' + detail.zh);
     setStatus('Room creation failed. Try again.', '创建失败，请重试。');
   } finally {
+    verifyAbort = null;
+    tsWidget.hidden = true; tsWidget.replaceChildren();
+    verifyCancel.hidden = true;
     setRoomBusy(false);
   }
 });

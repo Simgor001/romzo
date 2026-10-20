@@ -242,8 +242,8 @@ nav {
 .play-form-error { color: var(--bad); font-size: 14px; margin-bottom: 0; }
 #copy-code { margin-bottom: 8px; }
 .play-hint { font-size: 14px; line-height: 1.7; color: var(--muted); margin: 0 0 16px; }
-#ts-widget { min-height: 65px; margin-bottom: 20px; }
-#ts-widget[data-size="compact"] { min-height: 140px; }
+#ts-widget { margin: 4px 0 12px; }
+#ts-widget:not([hidden]) { background: var(--bg1); border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 0; }
 #create-result { margin: 0; }
 .play-room-code { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 12px; font-size: 14px; color: var(--muted); }
 .play-room-code strong { font: 600 16px var(--mono); color: var(--ink); }
